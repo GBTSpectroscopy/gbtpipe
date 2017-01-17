@@ -43,6 +43,8 @@ import glob
 import copy
 from collections import namedtuple
 
+# Put this in to keep our lives from being more complicated by multiprocessing
+PARALLEL = False
 
 def mkdir_p(path):
     """Create a directory if it does not exist
@@ -141,6 +143,7 @@ def calibrate_win_feed_pol(log, cl_params, window, feed, pol, pipe):
     #  The calibrate_sdfits_integrations() method does not return anything.
     #   It determines the correct calibration path and writes the calibrated
     #   SDFITS output file specific to this feed/window/polarization.
+
     pipe.calibrate_sdfits_integrations(feed, window, pol,
                                        refSpectrum1, refTsys1, refTimestamp1,
                                        refTambient1, refElevation1,

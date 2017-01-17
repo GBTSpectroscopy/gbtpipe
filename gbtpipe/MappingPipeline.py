@@ -25,6 +25,7 @@
 # TODO: strip fitsio dependencies.  We can do better.
 
 from astropy.io import fits
+import fitsio
 
 from Integration import Integration
 from Calibration import Calibration

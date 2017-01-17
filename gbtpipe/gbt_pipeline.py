@@ -23,9 +23,9 @@
 # $Id$
 
 import commandline
-# from MappingPipeline import MappingPipeline
+from MappingPipeline import MappingPipeline
 from SdFitsIO import SdFits
-# import Imaging
+import Imaging
 from PipeLogging import Logging
 from Weather import Weather
 from Pipeutils import Pipeutils
@@ -33,6 +33,7 @@ from settings import *
 
 import blessings
 from astropy.io import fits
+import fitsio
 
 import os
 import errno
@@ -167,7 +168,7 @@ def preview_zenith_tau(log, row_list, cl_params, feeds, windows, pols):
             log.doMessage('ERR', 'Could not find scan for zenith opacity preview')
             return
 
-        ff = fits.open(cl_params.infilename)
+        ff = fitsio.FITS(cl_params.infilename)
         extension = foo['EXTENSION']
         row = foo['ROW'][0]
         bar = ff[extension]['OBSFREQ', 'DATE-OBS'][row]
@@ -179,7 +180,8 @@ def preview_zenith_tau(log, row_list, cl_params, feeds, windows, pols):
         pu = Pipeutils()
 
         mjd = pu.dateToMjd(dateobs)
-        zenithtau = weather.retrieve_zenith_opacity(mjd, obsfreq, log)
+        zenithtau = weather.retrieve_zenith_opacity(mjd, obsfreq, log=log, 
+                                                    forcecalc=cl_params.forcecalc)
         if zenithtau:
             log.doMessage('INFO',
                           'Approximate zenith opacity for map: {0:.3f}'.format(zenithtau))
@@ -491,11 +493,18 @@ class PipeParameters:
         self.units = 'tmb'
         self.zenithtau = None
         self.beamscaling = 1.0
+        self.forcecalc = True
+        self.smoothing_kernel = 'jinc'
+        self.clobber = True
+        self.mainbeam_eff = None
+        self.aperture_eff = None
+        self.spillover = None
 
 def initParameters(infilename):
     params = PipeParameters()
     params.infilename = infilename
     return params
+
 
 def runPipeline(cl_params):
     

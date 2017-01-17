@@ -12,4 +12,13 @@ from ._astropy_init import *
 
 # For egg_info test builds to pass, put package imports here.
 if not _ASTROPY_SETUP_:
-    from Weather import *
+    from Weather import Weather
+    from Calibration import Calibration
+    from PipeLogging import Logging
+    from Integration import Integration
+    from ObservationRows import ObservationRows
+    from SdFitsIO import SdFits, SdFitsIndexRowReader
+    import smoothing
+    from commandline import CommandLine
+    from gbt_pipeline import *
+    

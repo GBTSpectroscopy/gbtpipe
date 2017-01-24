@@ -16,6 +16,7 @@ if not _ASTROPY_SETUP_:
     from Calibration import Calibration
     from PipeLogging import Logging
     from Integration import Integration
+    from ConvenientIntegration import ConvenientIntegration
     from ObservationRows import ObservationRows
     from SdFitsIO import SdFits, SdFitsIndexRowReader
     import smoothing

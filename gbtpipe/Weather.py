@@ -31,25 +31,27 @@ from PipeLogging import Logging
 
 class Weather:
 
-    def __init__(self):
-
+    def __init__(self, database = '/users/rmaddale/Weather/ArchiveCoeffs/'):
+# alternative DB /home/gbtpipeline/weather/
         self.cal = Calibration()
         self.last_integration_mjd_timestamp = None
         self.last_requested_freq_ghz = None
         self.zenith_opacity = None
+        self.Tatm = None
         self.opacity_coeffs = None
         self.L_BAND_ZENITH_TAU = .008
         self.frequency_range = None
         self.time_range = None
         self.db_time_range = None
         self.log = None
+        self.database = database
 
-    def _opacity_database(self, timestamp):
+    def _opacity_database(self, timestamp, request='Opacity'):
         # retrieve a list of opacity coefficients files, based on a given directory
         # and filename structure
         opacity_coefficients_filename = False
-        opacity_files = glob.glob('/home/gbtpipeline/weather/CoeffsOpacityFreqList_avrg_*.txt')
-
+        opacity_files = glob.glob(self.database+'Coeffs'+request+
+                                  'FreqList_avrg_*.txt')        
         if 0 == len(opacity_files):
             return False, False
 
@@ -89,7 +91,8 @@ class Weather:
             # opacity coefficients files, then we can assume the current opacity
             # coefficients file will apply.  a date string is only added to the opacity
             # coefficients file when it is no longer the most current.
-            opacity_coefficients_filename = '/home/gbtpipeline/weather/CoeffsOpacityFreqList_avrg.txt'
+            opacity_coefficients_filename = self.database+'Coeffs'+\
+                request+'FreqList_avrg.txt'
             opacity_db_range = 'LATEST'
 
         # opacities coefficients filename
@@ -144,7 +147,7 @@ class Weather:
         return coeffs
 
     def retrieve_zenith_opacity(self, integration_mjd_timestamp, freq_hz, 
-                                forcecalc=False, log=None):
+                                forcecalc=False, request='Opacity', log=None):
 
         self.log = log
 
@@ -170,8 +173,7 @@ class Weather:
 
         self.last_integration_mjd_timestamp = integration_mjd_timestamp
         self.last_requested_freq_ghz = freq_ghz
-
-        # if we don't have a db time range OR
+          # if we don't have a db time range OR
         # we do have a time range AND
         #   the range is 'LATEST' AND
         #      timestamp is not w/in the same hour as the last set of coeffs, OR
@@ -201,7 +203,8 @@ class Weather:
             if bool(self.db_time_range):
                 log.doMessage('DBG', '   time in DB range ==', bool(self.db_time_range and (self.db_time_range[0] <= integration_mjd_timestamp <= self.db_time_range[1])))
 
-            self.opacity_coeffs, self.db_time_range = self._opacity_database(integration_mjd_timestamp)
+            self.opacity_coeffs, self.db_time_range = self._opacity_database(integration_mjd_timestamp, request=request)
+
             if (not self.opacity_coeffs) or (not self.db_time_range):
                 return False
 
@@ -238,8 +241,20 @@ class Weather:
                                                      prev_time, next_time,
                                                      integration_mjd_timestamp)
             time_corrected_coeffs.append(new_coeff)
-
-        self.zenith_opacity = self.cal.zenith_opacity(time_corrected_coeffs, freq_ghz)
-        log.doMessage('DBG', 'Zenith opacity:', self.zenith_opacity)
-
-        return self.zenith_opacity
+        if 'Opacity' in request:
+            self.zenith_opacity = self.cal.zenith_opacity(
+                time_corrected_coeffs, freq_ghz)
+            log.doMessage('DBG', 'Zenith opacity:', self.zenith_opacity)
+        
+            return self.zenith_opacity
+        if 'Tatm' in request:
+            self.Tatm = self.cal.Tatm_from_coeffs(time_corrected_coeffs,
+                                                  freq_ghz)
+            log.doMessage('DBG', 'Atmosphere Temperature:', self.Tatm)
+            return self.Tatm
+    def retrieve_Tatm(self, integration_mjd_timestamp, freq_hz, 
+                      forcecalc=False, log=None):
+        Tatm = self.retrieve_zenith_opacity(integration_mjd_timestamp, freq_hz,
+                                            forcecalc=forcecalc, log=log,
+                                            request='Tatm')
+        return Tatm

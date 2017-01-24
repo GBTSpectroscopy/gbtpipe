@@ -244,6 +244,14 @@ class Calibration(object):
         air_temp_k = air_temp_k_A + (air_temp_k_B * float(tmp_c))
         return air_temp_k
 
+    def Tatm_from_coeffs(self, coeffs, freq):
+        for idx, term in enumerate(coeffs):
+            if idx > 0:
+                result = result + term*freq**idx
+            else:
+                result = term
+        return result
+
     def zenith_opacity(self, coeffs, freq_ghz):
         r"""Interpolate low and high opacities across a vector of frequencies.
 
@@ -270,7 +278,6 @@ class Calibration(object):
                     result = result + term*freq**idx
                 else:
                     result = term
-            print(freq)
             return result
 
 

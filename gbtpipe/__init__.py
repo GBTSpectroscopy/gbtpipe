@@ -21,5 +21,7 @@ if not _ASTROPY_SETUP_:
     from SdFitsIO import SdFits, SdFitsIndexRowReader
     import smoothing
     from commandline import CommandLine
+    from Gridding import griddata
+    import Baseline
     from gbt_pipeline import *
     

@@ -46,7 +46,8 @@ if CREATE_PLOTS:
 
 class MappingPipeline:
 
-    def __init__(self, cl_params, row_list, feed, window, pol, term):
+    def __init__(self, cl_params, row_list, feed, window, pol, term,
+                 outdir=None):
 
         self.term = term
         self.log = None
@@ -68,6 +69,10 @@ class MappingPipeline:
 
         self.outfile = None
         self.outfilename = None
+        if outdir:
+            self.outdir=outdir
+        else:
+            self.outdir=os.getcwd()
 
         self.row_list = row_list
         self.CLOBBER = cl_params.clobber
@@ -250,7 +255,10 @@ class MappingPipeline:
             print('WARNING: Can not find data for scan {scan} window {win} feed {feed} polarization {pol}'.format(scan=self.cl.mapscans[0], win=window, feed=feed, pol=pol))
             raise
 
-        self.outfilename = targetname + '_scan_' + str(self.cl.mapscans[0]) + '_' + str(self.cl.mapscans[-1]) + '_window' + str(window) + '_feed' + str(feed) + '_pol' + str(pol) + '.fits'
+        self.outfilename = self.outdir + targetname +\
+            '_scan_' + str(self.cl.mapscans[0]) + '_' +\
+            str(self.cl.mapscans[-1]) + '_window' + str(window) +\
+            '_feed' + str(feed) + '_pol' + str(pol) + '.fits'
 
         self.log = Logging(self.cl, self.outfilename.rstrip('.fits'))
 

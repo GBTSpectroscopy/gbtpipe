@@ -70,9 +70,11 @@ class MappingPipeline:
         self.outfile = None
         self.outfilename = None
         if outdir:
-            self.outdir=outdir
+            if not os.path.exists(outdir):
+                os.mkdir(outdir)
+            self.outdir=outdir+'/'
         else:
-            self.outdir=os.getcwd()
+            self.outdir=os.getcwd()+'/'
 
         self.row_list = row_list
         self.CLOBBER = cl_params.clobber
@@ -129,7 +131,7 @@ class MappingPipeline:
         else:
             self.log.doMessage('ERR', 'Beam scaling factors not known for '
                                'receiver:', receiver)
-            os.unlink(self.outfilename)
+            os.unlink(self.outdir + '/' + self.outfilename)
             sys.exit(9)
 
     def determineSetup(self, sdfits_row_structure, ext):
@@ -255,14 +257,14 @@ class MappingPipeline:
             print('WARNING: Can not find data for scan {scan} window {win} feed {feed} polarization {pol}'.format(scan=self.cl.mapscans[0], win=window, feed=feed, pol=pol))
             raise
 
-        self.outfilename = self.outdir + targetname +\
+        self.outfilename = targetname +\
             '_scan_' + str(self.cl.mapscans[0]) + '_' +\
             str(self.cl.mapscans[-1]) + '_window' + str(window) +\
             '_feed' + str(feed) + '_pol' + str(pol) + '.fits'
 
         self.log = Logging(self.cl, self.outfilename.rstrip('.fits'))
 
-        if self.CLOBBER is False and os.path.exists(self.outfilename):
+        if self.CLOBBER is False and os.path.exists(self.outdir + self.outfilename):
             self.log.doMessage('WARN', ' Will not overwrite existing pipeline output.\nConsider using \'--clobber\' option to overwrite.')
             sys.exit()
 
@@ -271,6 +273,7 @@ class MappingPipeline:
         from cStringIO import StringIO
         sys.stdout = StringIO()
         # redirect stdout to not get clobber file warnings
+        import pdb; pdb.set_trace()
         self.outfile = fitsio.FITS(self.outfilename, 'rw', clobber=True)
         sys.stdout = old_stdout
 
@@ -407,7 +410,7 @@ class MappingPipeline:
                 self.outfile.close()
                 # if this is the first scan, remove the output file because the table will be empty
                 if scan == self.cl.mapscans[0]:
-                    os.unlink(self.outfilename)
+                    os.unlink(self.outdir + self.outfilename)
                 sys.exit()
 
             # break the input rows into chunks as buffers to write out

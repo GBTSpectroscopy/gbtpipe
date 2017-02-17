@@ -365,10 +365,10 @@ def griddata(pixPerBeam=3.5,
     # Add non standard fits keyword
     hdr = addHeader_nonStd(hdr, beamSize, s[1].data[0])
     # Adds history message
-    try:
-        hdr.add_history(history_message)
-    except UnboundLocalError:
-        pass
+    # try:
+    #    hdr.add_history(history_message)
+    # except UnboundLocalError:
+    #    pass
     hdr.add_history('Using GBTPIPE gridder version {0}'.format(__version__))
     hdu = fits.PrimaryHDU(outCube, header=hdr)
     hdu.writeto(outdir + '/' + outname + '.fits', clobber=True)

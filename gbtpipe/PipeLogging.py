@@ -38,7 +38,6 @@ class Logging:
 
         self.t = blessings.Terminal()
         self.logger = None
-
         logfilename = prefix + '_' + self.timestamp() + '.log'
         self.configure_logfile(verbose, logfilename, toconsole)
 
@@ -98,6 +97,8 @@ class Logging:
                   0: logging.CRITICAL}  # no output
 
         level = LEVELS.get(verbose, logging.DEBUG)
+        if '/' in logfilename:
+            logfilename = logfilename.split('/')[-1]
 
         loggername = logfilename.split('.')[0]
 

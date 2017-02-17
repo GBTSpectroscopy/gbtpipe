@@ -273,8 +273,7 @@ class MappingPipeline:
         from cStringIO import StringIO
         sys.stdout = StringIO()
         # redirect stdout to not get clobber file warnings
-        import pdb; pdb.set_trace()
-        self.outfile = fitsio.FITS(self.outfilename, 'rw', clobber=True)
+        self.outfile = fitsio.FITS(self.outdir + self.outfilename, 'rw', clobber=True)
         sys.stdout = old_stdout
 
         dtype = self.infile[ext][0].dtype

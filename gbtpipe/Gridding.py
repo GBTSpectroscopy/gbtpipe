@@ -44,7 +44,7 @@ def channelShift(x, ChanShift):
     return(x2)
 
 
-def jincGrid(xpix, ypix, xdata, ydata, pixPerBeam=None):
+def jincGrid(xpix, ypix, xdata, ydata, pixPerBeam):
     a = 1.55 / (3.0 / pixPerBeam)
     b = 2.52 / (3.0 / pixPerBeam)
 
@@ -168,26 +168,97 @@ def addHeader_nonStd(hdr, beamSize, sample):
 
     return(hdr)
 
-def griddata(pixPerBeam=3.5,
+def griddata(filelist, 
+             pixPerBeam=3.5,
              templateHeader=None,
              gridFunction=jincGrid,
-             rootdir=None,
-             target=None,
              startChannel=1024, endChannel=3072,
              doBaseline=True,
              baselineRegion=None,
              blorder=1,
-             Sessions=None,
-             file_extension=None,
              rebase=None, 
              beamSize=None,
              OnlineDoppler=True,
              flagRMS=False,
              flagRipple=False,
-             filelist = [],
              outdir=None, 
              outname=None,
              **kwargs):
+
+    """Gridding code for GBT spectral scan data produced by pipeline.
+    
+    Parameters
+    ----------
+    filelist : list
+        List of FITS files to be gridded into an output
+
+    Keywords
+    --------
+    pixPerBeam : float
+        Number of pixels per beam FWHM
+
+    templateHeader : `Header` object
+        Template header used for spatial pixel grid.
+
+    gridFunction : function 
+        Gridding function to be used.  The default `jincGrid` is a
+        tapered circular Bessel function.  The function has call
+        signature of func(xPixelCentre, yPixelCenter, xData, yData,
+        pixPerBeam)
+
+    startChannel : int
+        Starting channel for spectrum within the original spectral data.
+
+    endChannel : int
+        End channel for spectrum within the original spectral data
+
+    doBaseline : bool
+        Setting to True (default) performs per-scan baseline corrections.
+
+    baselineRegion : `numpy.slice` or list of `numpy.slice`
+        Regions in the original pixel data used for fitting the baseline.
+
+    blorder : int
+        Order of baseline.  Defaults to 1 (linear)
+
+    rebase : bool
+        Setting to True (default is False) performs per-pixel
+        rebaselining of the resulting cube.
+
+    beamSize : float
+        Telescope beam size at this frequency measured in degrees.
+
+    OnlineDopper : bool
+        Setting to True (default) assumes that the Doppler corrections
+        in the data are corrected during a telescope scan.  Setting to
+        False assumes that the Doppler correction is updated at the
+        end of a scan and linearly interpolates between scan ends.
+        
+    flagRMS : bool
+
+        Setting to True (default = False) flags spectra with rms
+        values >1.25x higher than prediction from the radiometer
+        formula.  This rms determination assumes that channels are not
+        strongly correlated.
+
+    flagRipple : bool
+        Setting to True (default = False) flags spectra with structure
+        in the line that is 2x higher than the rms prediction of the
+        radiometer formula.  Note that these estimators are outlier
+        robust.
+
+    outdir : str
+        Output directory name.  Defaults to current working directory.
+
+    outname : str
+        Output directory file name.  Defaults to object name in the
+        original spectra.
+
+    Returns
+    -------
+    None
+
+    """
 
     if outdir is None:
         outdir = os.getcwd()
@@ -337,7 +408,7 @@ def griddata(pixPerBeam=3.5,
                     and (ypoints > 0) and (ypoints < naxis2):
                 pixelWeight, Index = gridFunction(xmat, ymat,
                                                   xpoints, ypoints,
-                                                  pixPerBeam=pixPerBeam)
+                                                  pixPerBeam)
                 vector = np.outer(outslice * spectrum_wt,
                                   pixelWeight / tsys**2)
                 wts = pixelWeight / tsys**2

@@ -156,7 +156,8 @@ def addHeader_nonStd(hdr, beamSize, sample):
     bunit_dict = {'Tmb':'K',
                   'Ta*':'K'}
     inst_dict = {'RcvrArray75_115':'ARGUS',
-                 'RcvrArray18_26':'KFPA'}
+                 'RcvrArray18_26':'KFPA',
+                 'Rcvr1_2':'L-BAND'}
 
     hdr.set('BUNIT', value= bunit_dict[sample['TUNIT7']], 
             comment=sample['TUNIT7'])
@@ -176,7 +177,8 @@ def griddata(filelist,
              doBaseline=True,
              baselineRegion=None,
              blorder=1,
-             rebase=None, 
+             rebase=None,
+             rebaseorder=None,
              beamSize=None,
              OnlineDoppler=True,
              flagRMS=False,
@@ -450,22 +452,28 @@ def griddata(filelist,
     hdu2.writeto(outdir + '/' + outname + '_wts.fits', clobber=True)
 
     if rebase:
-        if 'NH3_11' in rebase:
+        if rebaseorder is None:
+            rebaseorder = blorder
+        if 'NH3_11' in outname:
             Baseline.rebaseline(outdir + '/' + outname + '.fits',
-                                windowFunction=baseline.ammoniaWindow,
-                                line='oneone', **kwargs)
+                                windowFunction=Baseline.ammoniaWindow,
+                                line='oneone', blorder=rebaseorder,
+                                **kwargs)
 
-        elif 'NH3_22' in rebase:
+        elif 'NH3_22' in outname:
             winfunc = baseline.ammoniaWindow
             Baseline.rebaseline(outdir + '/' + outname + '.fits',
-                                windowFunction=baseline.ammoniaWindow,
-                                line='twotwo', **kwargs)
+                                windowFunction=Baseline.ammoniaWindow,
+                                line='twotwo', blorder=rebaseorder,
+                                **kwargs)
 
-        elif 'NH3_33' in rebase:
+        elif 'NH3_33' in outname:
             Baseline.rebaseline(outdir + '/' + outname + '.fits',
-                                winfunc = baseline.ammoniaWindow,
+                                winfunc = Baseline.ammoniaWindow,
+                                blorder=rebaseorder,
                                 line='threethree', **kwargs)
         else:
             Baseline.rebaseline(outdir + '/' + outname + '.fits',
-                                windowFunction=baseline.tightWindow, 
+                                blorder=rebaseorder,
+                                windowFunction=Baseline.tightWindow, 
                                 **kwargs)

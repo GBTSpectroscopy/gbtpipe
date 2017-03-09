@@ -18,6 +18,11 @@ import os
 from . import __version__
 
 
+def mad1d(x):
+    med0 = np.median(x)
+    return np.median(np.abs(x - med0)) * 1.4826
+
+
 def baselineSpectrum(spectrum, order=1, baselineIndex=()):
     x = np.linspace(-1, 1, len(spectrum))
     coeffs = legendre.legfit(x[baselineIndex], spectrum[baselineIndex], order)
@@ -183,6 +188,8 @@ def griddata(filelist,
              OnlineDoppler=True,
              flagRMS=False,
              flagRipple=False,
+             flagSpike=False,
+             spikeThresh=5,
              outdir=None, 
              outname=None,
              **kwargs):
@@ -248,6 +255,10 @@ def griddata(filelist,
         in the line that is 2x higher than the rms prediction of the
         radiometer formula.  Note that these estimators are outlier
         robust.
+
+    flagSpike : bool
+        Setting to True (default = False) flags regions in spectra 
+        that show jumps of > 5 times the typical pixel to pixel fluctuation.
 
     outdir : str
         Output directory name.  Defaults to current working directory.
@@ -390,6 +401,13 @@ def griddata(filelist,
                                                         spectrum['CRVAL3'],
                                                         spectrum['CRVAL1'], 0)
             tsys = spectrum['TSYS']
+
+            if flagSpike:
+                jumps = (outslice - np.roll(outslice, -1))
+                noise = mad1d(jumps) * 2**(-0.5)
+                spikemask = (np.abs(jumps) < spikeThresh * noise)
+                spikemask = spikemask * np.roll(spikemask, 1)
+                spectrum_wt *= spikemask
             if flagRMS:
                 radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
                                                 spectrum['EXPOSURE'])
@@ -430,8 +448,6 @@ def griddata(filelist,
 
     outWts.shape = (1,) + outWts.shape
     outCube /= outWts
-
-
 
     # Create basic fits header from WCS structure
     hdr = fits.Header(w.to_header())

@@ -477,7 +477,6 @@ def griddata(filelist,
                                 **kwargs)
 
         elif 'NH3_22' in outname:
-            winfunc = baseline.ammoniaWindow
             Baseline.rebaseline(outdir + '/' + outname + '.fits',
                                 windowFunction=Baseline.ammoniaWindow,
                                 line='twotwo', blorder=rebaseorder,

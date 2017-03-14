@@ -225,3 +225,4 @@ def rebaseline(filename, blorder=3,
     outsc = outsc.with_spectral_unit(originalUnit)
     outsc.write(filename.replace('.fits', '_rebase{0}.fits'.format(blorder)),
                 overwrite=True)
+

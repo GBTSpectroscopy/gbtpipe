@@ -14,10 +14,27 @@ import numpy.polynomial.legendre as legendre
 import warnings
 import Baseline
 import os
+from spectral_cube import SpectralCube
+from radio_beam import Beam
 
 from . import __version__
 
+def postConvolve(filein, bmaj=None, bmin=None, 
+                 bpa=0 * u.deg, beamscale=1.28,
+                 fileout=None):
+    cube = SpectralCube.read(filein)
 
+    if bmaj is None:
+        bmaj = cube.beam.bmaj * beamscale
+    if bmin is None:
+        bmin = bmaj
+    if fileout is None:
+        fileout = filein.replace('.fits','_conv.fits')
+
+    targetBeam = Beam(bmaj, bmin, bpa)
+    newcube = cube.convolve_to(targetBeam)
+    newcube.write(fileout, overwrite=True)
+    
 def mad1d(x):
     med0 = np.median(x)
     return np.median(np.abs(x - med0)) * 1.4826
@@ -115,7 +132,7 @@ def VframeInterpolator(scan):
 def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0):
     RAlist = []
     DEClist = []
-    for thisfile in filelist:
+    for thisfile in filelist: 
         s = fits.getdata(thisfile)
         try:
             RAlist = RAlist + [s['CRVAL2']]
@@ -189,7 +206,7 @@ def griddata(filelist,
              flagRMS=False,
              flagRipple=False,
              flagSpike=False,
-             spikeThresh=5,
+             spikeThresh=10,
              outdir=None, 
              outname=None,
              **kwargs):

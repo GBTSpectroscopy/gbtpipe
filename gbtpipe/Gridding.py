@@ -20,12 +20,12 @@ from radio_beam import Beam
 from . import __version__
 
 def postConvolve(filein, bmaj=None, bmin=None, 
-                 bpa=0 * u.deg, beamscale=1.28,
+                 bpa=0 * u.deg, beamscale=1.1,
                  fileout=None):
     cube = SpectralCube.read(filein)
 
     if bmaj is None:
-        bmaj = cube.beam.bmaj * beamscale
+        bmaj = cube.beam.major * beamscale
     if bmin is None:
         bmin = bmaj
     if fileout is None:
@@ -206,6 +206,7 @@ def griddata(filelist,
              flagRMS=False,
              flagRipple=False,
              flagSpike=False,
+             rmsThresh=1.5,
              spikeThresh=10,
              outdir=None, 
              outname=None,
@@ -261,11 +262,13 @@ def griddata(filelist,
         end of a scan and linearly interpolates between scan ends.
         
     flagRMS : bool
-
         Setting to True (default = False) flags spectra with rms
-        values >1.25x higher than prediction from the radiometer
+        values >rmsThresh x higher than prediction from the radiometer
         formula.  This rms determination assumes that channels are not
-        strongly correlated.
+        strongly correlated
+
+    rmsThresh : float
+        Threshold for scan flagging based on rms.  Default = 1.5
 
     flagRipple : bool
         Setting to True (default = False) flags spectra with structure
@@ -390,7 +393,7 @@ def griddata(filelist,
             vframe = VframeInterpolator(s[1].data)
         else:
             vframe = s[1].data['VFRAME']
-
+        flagct = 0
         for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]
@@ -418,7 +421,7 @@ def griddata(filelist,
                                                         spectrum['CRVAL3'],
                                                         spectrum['CRVAL1'], 0)
             tsys = spectrum['TSYS']
-
+            
             if flagSpike:
                 jumps = (outslice - np.roll(outslice, -1))
                 noise = mad1d(jumps) * 2**(-0.5)
@@ -431,8 +434,9 @@ def griddata(filelist,
                 scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
                                                         outslice[2:]))
 
-                if scan_rms > 1.25 * radiometer_rms:
+                if scan_rms > rmsThresh * radiometer_rms:
                     tsys = 0 # Blank spectrum
+
             if flagRipple:
                 scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
                                                      outslice[2:]))
@@ -440,7 +444,8 @@ def griddata(filelist,
 
                 if ripple > 2 * scan_rms:
                     tsys = 0 # Blank spectrum
-                
+            if tsys == 0:
+                flagct +=1
             if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
                     and (ypoints > 0) and (ypoints < naxis2):
                 pixelWeight, Index = gridFunction(xmat, ymat,
@@ -451,6 +456,8 @@ def griddata(filelist,
                 wts = pixelWeight / tsys**2
                 outCube[:, ymat[Index], xmat[Index]] += vector
                 outWts[ymat[Index], xmat[Index]] += wts
+        print ("Percentage of flagged scans: {0:4.2f}".format(
+                100*flagct/float(idx)))
         # Temporarily do a file write for every batch of scans.
         outWtsTemp = np.copy(outWts)
         outWtsTemp.shape = (1,) + outWtsTemp.shape

@@ -22,6 +22,32 @@ from . import __version__
 def postConvolve(filein, bmaj=None, bmin=None, 
                  bpa=0 * u.deg, beamscale=1.1,
                  fileout=None):
+
+    """
+    This is a cube convolution wrapper that increases the beam size
+    modestly to improve sensitivity.
+
+    filein : str
+        Name of the FITS file to convolve
+
+    bmaj ; astropy.Quantity.Angle
+        Size of the new beam major axis
+
+    bmin ; astropy.Quantity.Angle
+        Size of the new beam minor axis
+    
+    bpa ; astropy.Quantity.Angle
+        Position angle of new beam
+
+    beamscale : np.float
+       Increase the beam size by this fraction upon convolution.
+       Default to 1.1
+       
+    fileout : str
+       Name of file to write out.  Defaults to appending '_conv' to
+       filename
+
+    """
     cube = SpectralCube.read(filein)
 
     if bmaj is None:

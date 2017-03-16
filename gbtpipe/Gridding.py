@@ -48,7 +48,7 @@ def postConvolve(filein, bmaj=None, bmin=None,
        filename
 
     """
-    cube = SpectralCube.read(filein)
+    cube = SpectralCube.read(filein+'.fits')
 
     if bmaj is None:
         bmaj = cube.beam.major * beamscale

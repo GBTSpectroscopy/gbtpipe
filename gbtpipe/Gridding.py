@@ -157,7 +157,8 @@ def VframeInterpolator(scan):
             pass
     return(vfit)
     
-def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0):
+def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0,
+               projection='TAN'):
     RAlist = []
     DEClist = []
     for thisfile in filelist: 
@@ -182,7 +183,8 @@ def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0):
     crpix2 = naxis2 / 2
     cdelt2 = beamSize / pixPerBeam
     crval2 = (maxLat + minLat) / 2
-    ctype2 = s[0]['CTYPE3'] + '--TAN'
+    ctype2 = s[0]['CTYPE3'] 
+    ctype2 += '-'*(5-len(ctype2))+projection
     # Negative to go in the usual direction on sky:
     cdelt1 = -beamSize / pixPerBeam
 
@@ -191,13 +193,14 @@ def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0):
                      np.cos(crval2 / 180 * np.pi) + 2 * pixPerBeam)
     crpix1 = naxis1 / 2
     crval1 = (minLon + maxLon) / 2
-    ctype1 = s[0]['CTYPE2'] + '---TAN'
+    ctype1 = s[0]['CTYPE2'] 
+    ctype1 += '-'*(5-len(ctype1))+projection
     outdict = {'CRVAL1': crval1, 'CRPIX1': crpix1,
                'CDELT1': cdelt1, 'NAXIS1': naxis1,
                'CTYPE1': ctype1, 'CRVAL2': crval2,
                'CRPIX2': crpix2, 'CDELT2': cdelt2,
                'NAXIS2': naxis2, 'CTYPE2': ctype2}
-
+    
     return(outdict)
 
 
@@ -236,6 +239,7 @@ def griddata(filelist,
              flagSpike=False,
              rmsThresh=1.25,
              spikeThresh=10,
+             projection='TAN'
              outdir=None, 
              outname=None,
              **kwargs):
@@ -355,8 +359,10 @@ def griddata(filelist,
     if outname is None:
         outname = s[0]['OBJECT']
 
+    # New Beam size measurements use 1.18 vs. 1.22 based on GBT Memo 296.
+    
     if beamSize is None:
-        beamSize = 1.22 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
+        beamSize = 1.18 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
     naxis3 = len(s[0]['DATA'][startChannel:endChannel])
 
     # Default behavior is to park the object velocity at
@@ -378,7 +384,7 @@ def griddata(filelist,
 
     if templateHeader is None:
         wcsdict = autoHeader(filelist, beamSize=beamSize,
-                             pixPerBeam=pixPerBeam)
+                             pixPerBeam=pixPerBeam, projection=projection)
         w.wcs.crpix = [wcsdict['CRPIX1'], wcsdict['CRPIX2'], crpix3]
         w.wcs.cdelt = np.array([wcsdict['CDELT1'], wcsdict['CDELT2'], cdelt3])
         w.wcs.crval = [wcsdict['CRVAL1'], wcsdict['CRVAL2'], crval3]

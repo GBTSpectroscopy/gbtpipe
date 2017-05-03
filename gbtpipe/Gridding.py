@@ -116,6 +116,17 @@ def jincGrid(xpix, ypix, xdata, ydata, pixPerBeam):
 
     return(wt, ind)
 
+def gaussGrid(xpix, ypix, xdata, ydata, pixPerBeam):
+    b = 1.00 / (3.0 / pixPerBeam)
+    Rsup = 1.00 * pixPerBeam  # Support radius is ~1 FWHM (Leroy likes 1.09)
+    dx = (xdata - xpix)
+    dy = (ydata - ypix)
+    b2 = 1. / (b**2)
+    distance = np.sqrt(dx**2 + dy**2)
+    ind  = (np.where(distance <= Rsup))
+    d = distance[ind]
+    wt = np.exp(-d**2 * b2)
+    return(wt, ind)
 
 def VframeInterpolator(scan):
     # Find cases where the scan number is 

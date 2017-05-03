@@ -14,8 +14,10 @@ import numpy.polynomial.legendre as legendre
 import warnings
 import Baseline
 import os
+import cygrid
 from spectral_cube import SpectralCube
 from radio_beam import Beam
+from astropy.coordinates import SkyCoord
 
 from . import __version__
 
@@ -253,6 +255,7 @@ def griddata(filelist,
              projection='TAN',
              outdir=None, 
              outname=None,
+             dtype=np.float64,
              **kwargs):
 
     """Gridding code for GBT spectral scan data produced by pipeline.
@@ -420,12 +423,13 @@ def griddata(filelist,
         if pixPerBeam < 3.5:
             warnings.warn('Template header requests {0}'.format(pixPerBeam)+
                           ' pixels per beam.')
-        if w.wcs.radesys != s[0]['RADESYS']:
+        if (((w.wcs.ctype[0]).split('-'))[0] !=
+            ((s[0]['CTYPE1']).split('-'))[0]):
             warnings.warn('Spectral data not in same frame as template header')
-            import pdb; pdb.set_trace()
+            eulerFlag = True
 
-    outCube = np.zeros((int(naxis3), int(naxis2), int(naxis1)))
-    outWts = np.zeros((int(naxis2), int(naxis1)))
+    outCube = np.zeros((int(naxis3), int(naxis2), int(naxis1)),dtype=dtype)
+    outWts = np.zeros((int(naxis2), int(naxis1)),dtype=dtype)
 
     xmat, ymat = np.meshgrid(np.arange(naxis1), np.arange(naxis2),
                              indexing='ij')
@@ -450,6 +454,40 @@ def griddata(filelist,
         else:
             vframe = s[1].data['VFRAME']
         flagct = 0
+        if eulerFlag:
+            if 'GLON' in s[1].data['CTYPE2'][0]:
+                inframe = 'galactic'
+            elif 'RA' in s[1].data['CTYPE2'][0]:
+                inframe = 'fk5'
+            else:
+                raise NotImplementedError
+            if 'GLON' in w.wcs.ctype[0]:
+                outframe = 'galactic'
+            elif 'RA' in w.wcs.ctype[0]:
+                outframe = 'fk5'
+            else:
+                raise NotImplementedError
+            
+            coords = SkyCoord(s[1].data['CRVAL2'],
+                              s[1].data['CRVAL3'],
+                              unit = (u.deg, u.deg),
+                              frame=inframe)
+            coords_xform = coords.transform_to(outframe)
+            if outframe == 'fk5':
+                longCoord = coords_xform.ra.deg
+                latCoord = coords_xform.dec.deg
+            elif outframe == 'galactic':
+                longCoord = coords_xform.l.deg
+                latCoord = coords_xform.b.deg
+        else:
+            longCoord = s[1].data['CRVAL2'],
+            latCoord = s[1].data['CRVAL3']
+        
+        gridder = cygrid.WcsGrid(w.to_header())
+        gridder.set_kernel('gauss1d',(beamSize/2.355), 3*(beamSize/2.355),
+                           beamSize/2/2.355)
+        gridder.grid(longCoord, latCoord, s[1].data['DATA'])
+        import pdb; pdb.set_trace()
         for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]
@@ -473,8 +511,8 @@ def griddata(filelist,
             outslice = (specData)[startChannel:endChannel]
             spectrum_wt = np.isfinite(outslice).astype(np.float)
             outslice = np.nan_to_num(outslice)
-            xpoints, ypoints, zpoints = w.wcs_world2pix(spectrum['CRVAL2'],
-                                                        spectrum['CRVAL3'],
+            xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[idx],
+                                                        latCoord[idx],
                                                         spectrum['CRVAL1'], 0)
             tsys = spectrum['TSYS']
             

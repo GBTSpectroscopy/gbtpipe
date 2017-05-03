@@ -239,7 +239,7 @@ def griddata(filelist,
              flagSpike=False,
              rmsThresh=1.25,
              spikeThresh=10,
-             projection='TAN'
+             projection='TAN',
              outdir=None, 
              outname=None,
              **kwargs):
@@ -376,8 +376,6 @@ def griddata(filelist,
     w = wcs.WCS(naxis=3)
 
     w.wcs.restfrq = nu0
-    w.wcs.radesys = s[0]['RADESYS']
-    w.wcs.equinox = s[0]['EQUINOX']
     # We are forcing this conversion to make nice cubes.
     w.wcs.specsys = 'LSRK'
     w.wcs.ssysobs = 'TOPOCENT'
@@ -391,6 +389,9 @@ def griddata(filelist,
         w.wcs.ctype = [wcsdict['CTYPE1'], wcsdict['CTYPE2'], ctype3]
         naxis2 = wcsdict['NAXIS2']
         naxis1 = wcsdict['NAXIS1']
+        w.wcs.radesys = s[0]['RADESYS']
+        w.wcs.equinox = s[0]['EQUINOX']
+
     else:
         w.wcs.crpix = [templateHeader['CRPIX1'],
                        templateHeader['CRPIX2'], crpix3]
@@ -402,6 +403,16 @@ def griddata(filelist,
                        templateHeader['CTYPE2'], ctype3]
         naxis2 = templateHeader['NAXIS2']
         naxis1 = templateHeader['NAXIS1']
+        w.wcs.radesys = templateHeader['RADESYS']
+        w.wcs.equinox = templateHeader['EQUINOX']
+        pixPerBeam = np.abs(beamSize / w.pixel_scale_matrix[1,1])
+        if pixPerBeam < 3.5:
+            warnings.warn('Template header requests {0}'.format(pixPerBeam)+
+                          ' pixels per beam.')
+        if w.wcs.radesys != s[0]['RADESYS']:
+            warnings.warn('Spectral data not in same frame as template header')
+            import pdb; pdb.set_trace()
+
     outCube = np.zeros((int(naxis3), int(naxis2), int(naxis1)))
     outWts = np.zeros((int(naxis2), int(naxis1)))
 

@@ -14,7 +14,6 @@ import numpy.polynomial.legendre as legendre
 import warnings
 import Baseline
 import os
-import cygrid
 from spectral_cube import SpectralCube
 from radio_beam import Beam
 from astropy.coordinates import SkyCoord
@@ -483,11 +482,6 @@ def griddata(filelist,
             longCoord = s[1].data['CRVAL2'],
             latCoord = s[1].data['CRVAL3']
         
-        gridder = cygrid.WcsGrid(w.to_header())
-        gridder.set_kernel('gauss1d',(beamSize/2.355), 3*(beamSize/2.355),
-                           beamSize/2/2.355)
-        gridder.grid(longCoord, latCoord, s[1].data['DATA'])
-        import pdb; pdb.set_trace()
         for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]

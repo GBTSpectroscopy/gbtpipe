@@ -339,7 +339,7 @@ def griddata(filelist,
     """
 
     eulerFlag = False
-
+    print "Starting Gridding"
     if outdir is None:
         outdir = os.getcwd()
 
@@ -481,7 +481,7 @@ def griddata(filelist,
                 longCoord = coords_xform.l.deg
                 latCoord = coords_xform.b.deg
         else:
-            longCoord = s[1].data['CRVAL2'],
+            longCoord = s[1].data['CRVAL2']
             latCoord = s[1].data['CRVAL3']
         
         for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):

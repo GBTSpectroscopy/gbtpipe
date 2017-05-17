@@ -338,6 +338,8 @@ def griddata(filelist,
 
     """
 
+    eulerFlag = False
+
     if outdir is None:
         outdir = os.getcwd()
 

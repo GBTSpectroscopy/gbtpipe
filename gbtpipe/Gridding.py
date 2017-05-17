@@ -558,7 +558,7 @@ def griddata(filelist,
         hdr = addHeader_nonStd(hdr, beamSize, s[1].data[0])
         #
         hdu = fits.PrimaryHDU(outCubeTemp, header=hdr)
-        hdu.writeto(outdir + '/' + outname + '.fits', clobber=True)
+        hdu.writeto(outdir + '/' + outname + '.fits', overwrite=True)
 
     outWts.shape = (1,) + outWts.shape
     outCube /= outWts
@@ -574,12 +574,12 @@ def griddata(filelist,
     #    pass
     hdr.add_history('Using GBTPIPE gridder version {0}'.format(__version__))
     hdu = fits.PrimaryHDU(outCube, header=hdr)
-    hdu.writeto(outdir + '/' + outname + '.fits', clobber=True)
+    hdu.writeto(outdir + '/' + outname + '.fits', overwrite=True)
 
     w2 = w.dropaxis(2)
     hdr2 = fits.Header(w2.to_header())
     hdu2 = fits.PrimaryHDU(outWts, header=hdr2)
-    hdu2.writeto(outdir + '/' + outname + '_wts.fits', clobber=True)
+    hdu2.writeto(outdir + '/' + outname + '_wts.fits', overwrite=True)
 
     if rebase:
         if rebaseorder is None:

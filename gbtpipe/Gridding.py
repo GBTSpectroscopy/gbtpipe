@@ -328,6 +328,14 @@ def griddata(filelist,
         Setting to True (default = False) flags regions in spectra 
         that show jumps of > 5 times the typical pixel to pixel fluctuation.
 
+    blankSpike : bool
+        Setting to True sets spikes to zero to avoid corrupting data
+        before frequency shifting.
+
+    plotTimeSeries : bool
+        Create scan vs frequency plot to inspect raw scan data.  This
+        saves a PNG file to the output directory.
+
     outdir : str
         Output directory name.  Defaults to current working directory.
 

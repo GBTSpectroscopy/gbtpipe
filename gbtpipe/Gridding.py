@@ -17,6 +17,7 @@ import os
 from spectral_cube import SpectralCube
 from radio_beam import Beam
 from astropy.coordinates import SkyCoord
+import matplotlib.pyplot as plt
 
 from . import __version__
 
@@ -250,6 +251,7 @@ def griddata(filelist,
              flagRipple=False,
              flagSpike=False,
              blankSpike=False,
+             plotTimeSeries=False,
              rmsThresh=1.25,
              spikeThresh=10,
              projection='TAN',
@@ -484,7 +486,26 @@ def griddata(filelist,
         else:
             longCoord = s[1].data['CRVAL2']
             latCoord = s[1].data['CRVAL3']
-        
+
+        if plotTimeSeries:
+            vmin=np.nanpercentile(s[1].data['DATA'],15)
+            vmed=np.nanpercentile(s[1].data['DATA'],50)
+            vmax=np.nanpercentile(s[1].data['DATA'],85)
+            fig = plt.figure(figsize=(8.0,6.5))
+            ax = fig.add_subplot(111)
+            im = ax.imshow(s[1].data['DATA'],
+                           interpolation='nearest',
+                           cmap='PuOr', vmin=(4*vmin-3*vmed),
+                           vmax=4*vmax-3*vmed)
+            ax.set_xlabel('Channel')
+            ax.set_title(thisfile)
+            ax.set_ylabel('Scan')
+            cb = fig.colorbar(im)
+            cb.set_label('Intensity (K)')
+            plt.savefig(outdir + '/' + thisfile.replace('fits', 'png'))
+            plt.close()
+            plt.clf()
+
         for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]

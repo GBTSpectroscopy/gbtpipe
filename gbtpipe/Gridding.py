@@ -249,6 +249,7 @@ def griddata(filelist,
              flagRMS=False,
              flagRipple=False,
              flagSpike=False,
+             blankSpike=False,
              rmsThresh=1.25,
              spikeThresh=10,
              projection='TAN',
@@ -490,7 +491,15 @@ def griddata(filelist,
                                             for ss in baselineRegion])
 
             specData = spectrum['DATA']
+
             # baseline fit
+            if blankSpike:
+                jumps = (specData - np.roll(specData, -1))
+                noise = mad1d(jumps) * 2**(-0.5)
+                spikemask = (np.abs(jumps) < spikeThresh * noise)
+                spikemask = spikemask * np.roll(spikemask, 1)
+                specData[~spikemask] = 0.0
+                
             if doBaseline & np.all(np.isfinite(specData)):
                 specData = baselineSpectrum(specData, order=blorder,
                                             baselineIndex=baselineIndex)
@@ -502,8 +511,10 @@ def griddata(filelist,
                 
             DeltaNu = freqShiftValue(spectrum['CRVAL1'],
                                      -vframe[idx]) - crval3
+
             DeltaChan = DeltaNu / cdelt3
             specData = channelShift(specData, -DeltaChan)
+ 
             outslice = (specData)[startChannel:endChannel]
             spectrum_wt = np.isfinite(outslice).astype(np.float)
             outslice = np.nan_to_num(outslice)
@@ -511,13 +522,7 @@ def griddata(filelist,
                                                         latCoord[idx],
                                                         spectrum['CRVAL1'], 0)
             tsys = spectrum['TSYS']
-            
-            if flagSpike:
-                jumps = (outslice - np.roll(outslice, -1))
-                noise = mad1d(jumps) * 2**(-0.5)
-                spikemask = (np.abs(jumps) < spikeThresh * noise)
-                spikemask = spikemask * np.roll(spikemask, 1)
-                spectrum_wt *= spikemask
+
             if flagRMS:
                 radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
                                                 spectrum['EXPOSURE'])
@@ -553,7 +558,6 @@ def griddata(filelist,
         outWtsTemp.shape = (1,) + outWtsTemp.shape
         outCubeTemp = np.copy(outCube)
         outCubeTemp /= outWtsTemp
-
         hdr = fits.Header(w.to_header())
         hdr = addHeader_nonStd(hdr, beamSize, s[1].data[0])
         #

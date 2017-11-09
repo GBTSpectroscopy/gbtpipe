@@ -168,8 +168,8 @@ def rebaseline(filename, blorder=3,
     goodposition = np.isfinite(cube.apply_numpy_function(np.max, axis=0))
     y, x = np.where(goodposition)
     outcube = np.zeros(cube.shape) * np.nan
-    RegionName = (filename.split('_'))[0]
-
+    RegionName = (filename.split('/'))[-1]
+    RegionName = (RegionName.split('_'))[0]
     nuindex = np.arange(cube.shape[0])
     runmin = nuindex[-1]
     runmax = nuindex[0]

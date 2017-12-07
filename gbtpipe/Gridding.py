@@ -510,7 +510,8 @@ def griddata(filelist,
             ax.set_ylabel('Scan')
             cb = fig.colorbar(im)
             cb.set_label('Intensity (K)')
-            plt.savefig(outdir + '/' + thisfile.replace('fits', 'png'))
+            thisroot = (thisfile.split('/'))[-1]
+            plt.savefig(outdir + '/' + thisroot.replace('fits', 'png'))
             plt.close()
             plt.clf()
 

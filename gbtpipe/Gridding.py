@@ -505,8 +505,9 @@ def griddata(filelist,
                            interpolation='nearest',
                            cmap='PuOr', vmin=(4*vmin-3*vmed),
                            vmax=4*vmax-3*vmed)
+            outscans = np.zeros_like(s[1].data['DATA'] + np.nan) 
             ax.set_xlabel('Channel')
-            ax.set_title(thisfile)
+            ax.set_title((thisfile.split('/'))[-1])
             ax.set_ylabel('Scan')
             cb = fig.colorbar(im)
             cb.set_label('Intensity (K)')
@@ -573,6 +574,8 @@ def griddata(filelist,
                 flagct +=1
             if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
                     and (ypoints > 0) and (ypoints < naxis2):
+                if plotTimeSeries:
+                    outscans[idx, startChannel:endChannel] = outslice
                 pixelWeight, Index = gridFunction(xmat, ymat,
                                                   xpoints, ypoints,
                                                   pixPerBeam)
@@ -583,6 +586,28 @@ def griddata(filelist,
                 outWts[ymat[Index], xmat[Index]] += wts
         print ("Percentage of flagged scans: {0:4.2f}".format(
                 100*flagct/float(idx)))
+        if plotTimeSeries:
+            vmin=np.nanpercentile(outscans,15)
+            vmed=np.nanpercentile(outscans,50)
+            vmax=np.nanpercentile(outscans,85)
+            fig = plt.figure(figsize=(8.0,6.5))
+            ax = fig.add_subplot(111)
+            im = ax.imshow(outscans,
+                           interpolation='nearest',
+                           cmap='PuOr', vmin=(4*vmin-3*vmed),
+                           vmax=4*vmax-3*vmed)
+            outscans = np.zeros_like(s[1].data['DATA'] + np.nan) 
+            ax.set_xlabel('Channel')
+            ax.set_title(thisfile)
+            ax.set_ylabel('Scan')
+            cb = fig.colorbar(im)
+            cb.set_label('Intensity (K)')
+            thisroot = (thisfile.split('/'))[-1]
+            plt.savefig(outdir + '/' + thisroot.replace('fits', 'flagged.png'))
+            plt.close()
+            plt.clf()
+                    
+
         # Temporarily do a file write for every batch of scans.
         outWtsTemp = np.copy(outWts)
         outWtsTemp.shape = (1,) + outWtsTemp.shape

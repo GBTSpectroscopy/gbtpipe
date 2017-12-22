@@ -255,6 +255,7 @@ def griddata(filelist,
              rmsThresh=1.25,
              spikeThresh=10,
              projection='TAN',
+             plotsubdir='',
              outdir=None, 
              outname=None,
              dtype=np.float64,
@@ -335,6 +336,9 @@ def griddata(filelist,
     plotTimeSeries : bool
         Create scan vs frequency plot to inspect raw scan data.  This
         saves a PNG file to the output directory.
+
+    plotsubdir : str
+        Subdirectory for timeseries plots.  Defaults to same directory as imaging.
 
     outdir : str
         Output directory name.  Defaults to current working directory.
@@ -512,7 +516,8 @@ def griddata(filelist,
             cb = fig.colorbar(im)
             cb.set_label('Intensity (K)')
             thisroot = (thisfile.split('/'))[-1]
-            plt.savefig(outdir + '/' + thisroot.replace('fits', 'png'))
+            plt.savefig(outdir + '/' + plotsubdir +
+                        '/' + thisroot.replace('fits', 'png'))
             plt.close()
             plt.clf()
 
@@ -603,7 +608,8 @@ def griddata(filelist,
             cb = fig.colorbar(im)
             cb.set_label('Intensity (K)')
             thisroot = (thisfile.split('/'))[-1]
-            plt.savefig(outdir + '/' + thisroot.replace('fits', 'flagged.png'))
+            plt.savefig(outdir + '/' + plotsubdir + '/' +
+                        thisroot.replace('fits', 'flagged.png'))
             plt.close()
             plt.clf()
                     

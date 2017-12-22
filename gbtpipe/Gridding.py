@@ -598,7 +598,7 @@ def griddata(filelist,
                            vmax=4*vmax-3*vmed)
             outscans = np.zeros_like(s[1].data['DATA'] + np.nan) 
             ax.set_xlabel('Channel')
-            ax.set_title(thisfile)
+            ax.set_title((thisfile.split('/'))[-1])
             ax.set_ylabel('Scan')
             cb = fig.colorbar(im)
             cb.set_label('Intensity (K)')

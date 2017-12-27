@@ -171,14 +171,15 @@ def VframeInterpolator(scan):
     return(vfit)
     
 def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0,
-               projection='TAN'):
+               projection='TAN', discardSky=True):
     RAlist = []
     DEClist = []
     for thisfile in filelist: 
         s = fits.getdata(thisfile)
         try:
-            RAlist = RAlist + [s['CRVAL2']]
-            DEClist = DEClist + [s['CRVAL3']]
+            idx = (s['OBJECT'] != 'VANE') * (s['OBJECT'] != 'SKY')
+            RAlist = RAlist + [s['CRVAL2'][idx]]
+            DEClist = DEClist + [s['CRVAL3'][idx]]
         except:
             pdb.set_trace()
 
@@ -190,7 +191,7 @@ def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0,
     maxLon = np.nanmax(longitude)
     minLat = np.nanmin(latitude)
     maxLat = np.nanmax(latitude)
-
+    
     naxis2 = np.ceil((maxLat - minLat) /
                      (beamSize / pixPerBeam) + 2 * pixPerBeam)
     crpix2 = naxis2 / 2
@@ -462,7 +463,9 @@ def griddata(filelist,
         s = fits.open(thisfile)
         print("Now processing {0}".format(thisfile))
         print("This is file {0} of {1}".format(ctr, len(filelist)))
-
+        if len(s[1].data) == 0:
+            warnings.warn("Corrupted file: {0}".format(thisfile))
+            continue
         nuindex = np.arange(len(s[1].data['DATA'][0]))
 
         if not OnlineDoppler:
@@ -527,7 +530,8 @@ def griddata(filelist,
                                             for ss in baselineRegion])
 
             specData = spectrum['DATA']
-
+            if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
+                continue
             # baseline fit
             if blankSpike:
                 jumps = (specData - np.roll(specData, -1))

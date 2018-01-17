@@ -220,15 +220,25 @@ def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0,
 
 def addHeader_nonStd(hdr, beamSize, sample):
 
+    unique_units, posn = np.unique(sample['TUNIT7'],
+                                   return_inverse=True)
+    counts = np.bincount(posn)
+    bunit = unique_units[counts.argmax()]
+
+    unique_frontend, posn = np.unique(sample['FRONTEND'],
+                                      return_inverse=True)
+    counts = np.bincount(posn)
+    frontend = unique_frontend[counts.argmax()]
+
     bunit_dict = {'Tmb':'K',
-                  'Ta*':'K'}
+                  'Ta*':'K',
+                  'Counts':'Counts'}
     inst_dict = {'RcvrArray75_115':'ARGUS',
                  'RcvrArray18_26':'KFPA',
                  'Rcvr1_2':'L-BAND'}
-
-    hdr.set('BUNIT', value= bunit_dict[sample['TUNIT7']], 
-            comment=sample['TUNIT7'])
-    hdr['INSTRUME'] = inst_dict[sample['FRONTEND']]
+    hdr.set('BUNIT', value= bunit_dict[bunit], 
+            comment=bunit)
+    hdr['INSTRUME'] = inst_dict[frontend]
     hdr['BMAJ'] = beamSize
     hdr['BMIN'] = beamSize
     hdr['BPA'] = 0.0
@@ -624,7 +634,8 @@ def griddata(filelist,
         outCubeTemp = np.copy(outCube)
         outCubeTemp /= outWtsTemp
         hdr = fits.Header(w.to_header())
-        hdr = addHeader_nonStd(hdr, beamSize, s[1].data[0])
+
+        hdr = addHeader_nonStd(hdr, beamSize, s[1].data)
         #
         hdu = fits.PrimaryHDU(outCubeTemp, header=hdr)
         hdu.writeto(outdir + '/' + outname + '.fits', clobber=True)

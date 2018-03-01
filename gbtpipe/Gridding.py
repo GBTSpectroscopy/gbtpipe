@@ -21,6 +21,42 @@ import matplotlib.pyplot as plt
 
 from . import __version__
 
+def is_outlier(points, thresh=3.5):
+    """
+    Pulled from:
+    https://github.com/joferkington/oost_paper_code/blob/master/utilities.py
+
+    Returns a boolean array with True if points are outliers and False 
+    otherwise.
+
+    Parameters:
+    -----------
+        points : An numobservations by numdimensions array of observations
+        thresh : The modified z-score to use as a threshold. Observations with
+            a modified z-score (based on the median absolute deviation) greater
+            than this value will be classified as outliers.
+
+    Returns:
+    --------
+        mask : A numobservations-length boolean array.
+
+    References:
+    ----------
+        Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect and
+        Handle Outliers", The ASQC Basic References in Quality Control:
+        Statistical Techniques, Edward F. Mykytka, Ph.D., Editor. 
+    """
+    if len(points.shape) == 1:
+        points = points[:,None]
+    median = np.median(points, axis=0)
+    diff = np.sum((points - median)**2, axis=-1)
+    diff = np.sqrt(diff)
+    med_abs_deviation = np.median(diff)
+
+    modified_z_score = 0.6745 * diff / med_abs_deviation
+
+    return modified_z_score > thresh
+
 def postConvolve(filein, bmaj=None, bmin=None, 
                  bpa=0 * u.deg, beamscale=1.1,
                  fileout=None):
@@ -73,7 +109,16 @@ def mad1d(x):
 def baselineSpectrum(spectrum, order=1, baselineIndex=()):
     x = np.linspace(-1, 1, len(spectrum))
     coeffs = legendre.legfit(x[baselineIndex], spectrum[baselineIndex], order)
-    spectrum -= legendre.legval(x, coeffs)
+    #import matplotlib.pyplot as plt
+    #if 1 > 0:
+	#print max(y)/noiserms
+    #	plt.plot(x,legendre.legval(x, coeffs), color='red') #Fitted baseline
+    #	plt.plot(x,spectrum, color='blue') # original spectrum
+    #	plt.plot(x[baselineIndex], spectrum[baselineIndex], color='green') # channels used for fit
+    #	plt.show()
+    #spectrum -= legendre.legval(x, coeffs)
+    #plt.plot(x,spectrum, color='blue')
+    #plt.show()
     return(spectrum)
 
 
@@ -453,7 +498,7 @@ def griddata(filelist,
         if (((w.wcs.ctype[0]).split('-'))[0] !=
             ((s[0]['CTYPE1']).split('-'))[0]):
             warnings.warn('Spectral data not in same frame as template header')
-            eulerFlag = True
+            #eulerFlag = True
 
     outCube = np.zeros((int(naxis3), int(naxis2), int(naxis1)),dtype=dtype)
     outWts = np.zeros((int(naxis2), int(naxis1)),dtype=dtype)
@@ -471,6 +516,11 @@ def griddata(filelist,
     for thisfile in filelist:
         ctr += 1
         s = fits.open(thisfile)
+	# Remove outliers in Lat/Lon space
+	f = np.where(is_outlier(s[1].data['CRVAL2'], thresh=1.5)!=True)
+	s[1].data = s[1].data[f]
+	f = np.where(is_outlier(s[1].data['CRVAL3'], thresh=1.5)!=True)
+	s[1].data = s[1].data[f]
         print("Now processing {0}".format(thisfile))
         print("This is file {0} of {1}".format(ctr, len(filelist)))
         if len(s[1].data) == 0:
@@ -538,6 +588,8 @@ def griddata(filelist,
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]
                                             for ss in baselineRegion])
+	    #print np.shape(baselineIndex)
+	    #print baselineIndex
 
             specData = spectrum['DATA']
             if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':

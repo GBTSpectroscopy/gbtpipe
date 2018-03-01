@@ -489,7 +489,7 @@ def griddata(filelist,
         if (((w.wcs.ctype[0]).split('-'))[0] !=
             ((s[0]['CTYPE1']).split('-'))[0]):
             warnings.warn('Spectral data not in same frame as template header')
-            #eulerFlag = True
+            eulerFlag = True
 
     outCube = np.zeros((int(naxis3), int(naxis2), int(naxis1)),dtype=dtype)
     outWts = np.zeros((int(naxis2), int(naxis1)),dtype=dtype)

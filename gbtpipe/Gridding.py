@@ -109,16 +109,7 @@ def mad1d(x):
 def baselineSpectrum(spectrum, order=1, baselineIndex=()):
     x = np.linspace(-1, 1, len(spectrum))
     coeffs = legendre.legfit(x[baselineIndex], spectrum[baselineIndex], order)
-    #import matplotlib.pyplot as plt
-    #if 1 > 0:
-	#print max(y)/noiserms
-    #	plt.plot(x,legendre.legval(x, coeffs), color='red') #Fitted baseline
-    #	plt.plot(x,spectrum, color='blue') # original spectrum
-    #	plt.plot(x[baselineIndex], spectrum[baselineIndex], color='green') # channels used for fit
-    #	plt.show()
-    #spectrum -= legendre.legval(x, coeffs)
-    #plt.plot(x,spectrum, color='blue')
-    #plt.show()
+    spectrum -= legendre.legval(x, coeffs)
     return(spectrum)
 
 
@@ -588,8 +579,6 @@ def griddata(filelist,
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]
                                             for ss in baselineRegion])
-	    #print np.shape(baselineIndex)
-	    #print baselineIndex
 
             specData = spectrum['DATA']
             if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':

@@ -218,7 +218,8 @@ def rebaseline(filename, blorder=3,
                                                       blorder=blorder,
                                                       noiserms=noise)
 
-    outsc = SpectralCube(outcube, cube.wcs, header=cube.header)
+    outsc = SpectralCube(outcube, cube.wcs, header=cube.header,
+                         meta={'BUNIT':cube.header['BUNIT']})
     outsc = outsc[runmin:runmax, :, :]  # cut beyond baseline edges
 
     # Return to original spectral unit

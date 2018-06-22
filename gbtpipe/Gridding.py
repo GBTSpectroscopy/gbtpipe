@@ -232,6 +232,7 @@ def addHeader_nonStd(hdr, beamSize, sample):
 
     bunit_dict = {'Tmb':'K',
                   'Ta*':'K',
+                  'Ta':'K',
                   'Counts':'Counts'}
     inst_dict = {'RcvrArray75_115':'ARGUS',
                  'RcvrArray18_26':'KFPA',

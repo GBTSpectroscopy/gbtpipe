@@ -17,6 +17,7 @@ import os
 from spectral_cube import SpectralCube
 from radio_beam import Beam
 from astropy.coordinates import SkyCoord
+import matplotlib.pyplot as plt
 
 from . import __version__
 
@@ -170,14 +171,15 @@ def VframeInterpolator(scan):
     return(vfit)
     
 def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0,
-               projection='TAN'):
+               projection='TAN', discardSky=True):
     RAlist = []
     DEClist = []
     for thisfile in filelist: 
         s = fits.getdata(thisfile)
         try:
-            RAlist = RAlist + [s['CRVAL2']]
-            DEClist = DEClist + [s['CRVAL3']]
+            idx = (s['OBJECT'] != 'VANE') * (s['OBJECT'] != 'SKY')
+            RAlist = RAlist + [s['CRVAL2'][idx]]
+            DEClist = DEClist + [s['CRVAL3'][idx]]
         except:
             pdb.set_trace()
 
@@ -189,7 +191,7 @@ def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0,
     maxLon = np.nanmax(longitude)
     minLat = np.nanmin(latitude)
     maxLat = np.nanmax(latitude)
-
+    
     naxis2 = np.ceil((maxLat - minLat) /
                      (beamSize / pixPerBeam) + 2 * pixPerBeam)
     crpix2 = naxis2 / 2
@@ -218,15 +220,26 @@ def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0,
 
 def addHeader_nonStd(hdr, beamSize, sample):
 
+    unique_units, posn = np.unique(sample['TUNIT7'],
+                                   return_inverse=True)
+    counts = np.bincount(posn)
+    bunit = unique_units[counts.argmax()]
+
+    unique_frontend, posn = np.unique(sample['FRONTEND'],
+                                      return_inverse=True)
+    counts = np.bincount(posn)
+    frontend = unique_frontend[counts.argmax()]
+
     bunit_dict = {'Tmb':'K',
-                  'Ta*':'K'}
+                  'Ta*':'K',
+                  'Ta':'K',
+                  'Counts':'Counts'}
     inst_dict = {'RcvrArray75_115':'ARGUS',
                  'RcvrArray18_26':'KFPA',
                  'Rcvr1_2':'L-BAND'}
-
-    hdr.set('BUNIT', value= bunit_dict[sample['TUNIT7']], 
-            comment=sample['TUNIT7'])
-    hdr['INSTRUME'] = inst_dict[sample['FRONTEND']]
+    hdr.set('BUNIT', value= bunit_dict[bunit], 
+            comment=bunit)
+    hdr['INSTRUME'] = inst_dict[frontend]
     hdr['BMAJ'] = beamSize
     hdr['BMIN'] = beamSize
     hdr['BPA'] = 0.0
@@ -249,9 +262,12 @@ def griddata(filelist,
              flagRMS=False,
              flagRipple=False,
              flagSpike=False,
+             blankSpike=False,
+             plotTimeSeries=False,
              rmsThresh=1.25,
              spikeThresh=10,
              projection='TAN',
+             plotsubdir='',
              outdir=None, 
              outname=None,
              dtype=np.float64,
@@ -324,6 +340,17 @@ def griddata(filelist,
     flagSpike : bool
         Setting to True (default = False) flags regions in spectra 
         that show jumps of > 5 times the typical pixel to pixel fluctuation.
+
+    blankSpike : bool
+        Setting to True sets spikes to zero to avoid corrupting data
+        before frequency shifting.
+
+    plotTimeSeries : bool
+        Create scan vs frequency plot to inspect raw scan data.  This
+        saves a PNG file to the output directory.
+
+    plotsubdir : str
+        Subdirectory for timeseries plots.  Defaults to same directory as imaging.
 
     outdir : str
         Output directory name.  Defaults to current working directory.
@@ -447,7 +474,9 @@ def griddata(filelist,
         s = fits.open(thisfile)
         print("Now processing {0}".format(thisfile))
         print("This is file {0} of {1}".format(ctr, len(filelist)))
-
+        if len(s[1].data) == 0:
+            warnings.warn("Corrupted file: {0}".format(thisfile))
+            continue
         nuindex = np.arange(len(s[1].data['DATA'][0]))
 
         if not OnlineDoppler:
@@ -483,14 +512,45 @@ def griddata(filelist,
         else:
             longCoord = s[1].data['CRVAL2']
             latCoord = s[1].data['CRVAL3']
-        
+
+        if plotTimeSeries:
+            vmin=np.nanpercentile(s[1].data['DATA'],15)
+            vmed=np.nanpercentile(s[1].data['DATA'],50)
+            vmax=np.nanpercentile(s[1].data['DATA'],85)
+            fig = plt.figure(figsize=(8.0,6.5))
+            ax = fig.add_subplot(111)
+            im = ax.imshow(s[1].data['DATA'],
+                           interpolation='nearest',
+                           cmap='PuOr', vmin=(4*vmin-3*vmed),
+                           vmax=4*vmax-3*vmed)
+            outscans = np.zeros_like(s[1].data['DATA'] + np.nan) 
+            ax.set_xlabel('Channel')
+            ax.set_title((thisfile.split('/'))[-1])
+            ax.set_ylabel('Scan')
+            cb = fig.colorbar(im)
+            cb.set_label('Intensity (K)')
+            thisroot = (thisfile.split('/'))[-1]
+            plt.savefig(outdir + '/' + plotsubdir +
+                        '/' + thisroot.replace('fits', 'png'))
+            plt.close()
+            plt.clf()
+
         for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
             # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]
                                             for ss in baselineRegion])
 
             specData = spectrum['DATA']
+            if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
+                continue
             # baseline fit
+            if blankSpike:
+                jumps = (specData - np.roll(specData, -1))
+                noise = mad1d(jumps) * 2**(-0.5)
+                spikemask = (np.abs(jumps) < spikeThresh * noise)
+                spikemask = spikemask * np.roll(spikemask, 1)
+                specData[~spikemask] = 0.0
+                
             if doBaseline & np.all(np.isfinite(specData)):
                 specData = baselineSpectrum(specData, order=blorder,
                                             baselineIndex=baselineIndex)
@@ -502,8 +562,10 @@ def griddata(filelist,
                 
             DeltaNu = freqShiftValue(spectrum['CRVAL1'],
                                      -vframe[idx]) - crval3
+
             DeltaChan = DeltaNu / cdelt3
             specData = channelShift(specData, -DeltaChan)
+ 
             outslice = (specData)[startChannel:endChannel]
             spectrum_wt = np.isfinite(outslice).astype(np.float)
             outslice = np.nan_to_num(outslice)
@@ -511,13 +573,7 @@ def griddata(filelist,
                                                         latCoord[idx],
                                                         spectrum['CRVAL1'], 0)
             tsys = spectrum['TSYS']
-            
-            if flagSpike:
-                jumps = (outslice - np.roll(outslice, -1))
-                noise = mad1d(jumps) * 2**(-0.5)
-                spikemask = (np.abs(jumps) < spikeThresh * noise)
-                spikemask = spikemask * np.roll(spikemask, 1)
-                spectrum_wt *= spikemask
+
             if flagRMS:
                 radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
                                                 spectrum['EXPOSURE'])
@@ -538,6 +594,8 @@ def griddata(filelist,
                 flagct +=1
             if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
                     and (ypoints > 0) and (ypoints < naxis2):
+                if plotTimeSeries:
+                    outscans[idx, startChannel:endChannel] = outslice
                 pixelWeight, Index = gridFunction(xmat, ymat,
                                                   xpoints, ypoints,
                                                   pixPerBeam)
@@ -548,14 +606,37 @@ def griddata(filelist,
                 outWts[ymat[Index], xmat[Index]] += wts
         print ("Percentage of flagged scans: {0:4.2f}".format(
                 100*flagct/float(idx)))
+        if plotTimeSeries:
+            vmin=np.nanpercentile(outscans,15)
+            vmed=np.nanpercentile(outscans,50)
+            vmax=np.nanpercentile(outscans,85)
+            fig = plt.figure(figsize=(8.0,6.5))
+            ax = fig.add_subplot(111)
+            im = ax.imshow(outscans,
+                           interpolation='nearest',
+                           cmap='PuOr', vmin=(4*vmin-3*vmed),
+                           vmax=4*vmax-3*vmed)
+            outscans = np.zeros_like(s[1].data['DATA'] + np.nan) 
+            ax.set_xlabel('Channel')
+            ax.set_title((thisfile.split('/'))[-1])
+            ax.set_ylabel('Scan')
+            cb = fig.colorbar(im)
+            cb.set_label('Intensity (K)')
+            thisroot = (thisfile.split('/'))[-1]
+            plt.savefig(outdir + '/' + plotsubdir + '/' +
+                        thisroot.replace('fits', 'flagged.png'))
+            plt.close()
+            plt.clf()
+                    
+
         # Temporarily do a file write for every batch of scans.
         outWtsTemp = np.copy(outWts)
         outWtsTemp.shape = (1,) + outWtsTemp.shape
         outCubeTemp = np.copy(outCube)
         outCubeTemp /= outWtsTemp
-
         hdr = fits.Header(w.to_header())
-        hdr = addHeader_nonStd(hdr, beamSize, s[1].data[0])
+
+        hdr = addHeader_nonStd(hdr, beamSize, s[1].data)
         #
         hdu = fits.PrimaryHDU(outCubeTemp, header=hdr)
         hdu.writeto(outdir + '/' + outname + '.fits', overwrite=True)

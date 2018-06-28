@@ -47,7 +47,7 @@ if CREATE_PLOTS:
 class MappingPipeline:
 
     def __init__(self, cl_params, row_list, feed, window, pol, term,
-                 outdir=None):
+                 outdir=None, suffix=''):
 
         self.term = term
         self.log = None
@@ -80,7 +80,7 @@ class MappingPipeline:
         self.CLOBBER = cl_params.clobber
 
         try:
-            self.create_output_sdfits(feed, window, pol)
+            self.create_output_sdfits(feed, window, pol, suffix=suffix)
         except KeyError:
             raise
 
@@ -243,7 +243,7 @@ class MappingPipeline:
 
         return dtype
 
-    def create_output_sdfits(self, feed, window, pol):
+    def create_output_sdfits(self, feed, window, pol, suffix=''):
 
         try:
             signalRows = self.row_list.get(self.cl.mapscans[0], feed, window, pol)
@@ -260,7 +260,7 @@ class MappingPipeline:
         self.outfilename = targetname +\
             '_scan_' + str(self.cl.mapscans[0]) + '_' +\
             str(self.cl.mapscans[-1]) + '_window' + str(window) +\
-            '_feed' + str(feed) + '_pol' + str(pol) + '.fits'
+            '_feed' + str(feed) + '_pol' + str(pol) + suffix +'.fits'
 
         self.log = Logging(self.cl, self.outfilename.rstrip('.fits'))
 

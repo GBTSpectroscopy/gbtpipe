@@ -27,13 +27,13 @@
 from astropy.io import fits
 import fitsio
 
-from Integration import Integration
-from Calibration import Calibration
-from SdFitsIO import SdFits
-from Pipeutils import Pipeutils
-from Weather import Weather
-from PipeLogging import Logging
-from settings import *
+from .Integration import Integration
+from .Calibration import Calibration
+from .SdFitsIO import SdFits
+from .Pipeutils import Pipeutils
+from .Weather import Weather
+from .PipeLogging import Logging
+from .settings import *
 
 import numpy as np
 
@@ -63,7 +63,7 @@ class MappingPipeline:
 
         try:
             self.infile = fitsio.FITS(cl_params.infilename)
-        except ValueError, eee:
+        except ValueError:
             self.log.doMessage('ERR', 'Input', eee)
             sys.exit()
 

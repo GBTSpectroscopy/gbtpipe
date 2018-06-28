@@ -76,7 +76,7 @@ class Logging:
             self.logger.debug('{t.bold}{t.blue}DEBUG:{t.normal} {m}'.format(m=message, t=self.t))
             sys.stdout.flush()
         else:
-            print 'ERROR: please check logging level.', level
+            print('ERROR: please check logging level.', level)
         sys.stdout.flush()
         sys.stderr.flush()
 

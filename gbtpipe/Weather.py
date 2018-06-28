@@ -26,8 +26,8 @@ import sys
 import os
 import glob
 
-from Calibration import Calibration
-from PipeLogging import Logging
+from .Calibration import Calibration
+from .PipeLogging import Logging
 
 class Weather:
 
@@ -74,9 +74,9 @@ class Weather:
                     self.log.doMessage('ERR', '  Try setting zenith tau at command line.')
                     self.log.doMessage('ERR', timestamp, '<', opacity_file_starttime)
                 else:
-                    print 'ERROR: Date is too early for opacities.'
-                    print '  Try setting zenith tau at command line.'
-                    print timestamp, '<', opacity_file_starttime
+                    print('ERROR: Date is too early for opacities.')
+                    print('  Try setting zenith tau at command line.')
+                    print(timestamp, '<', opacity_file_starttime)
                 sys.exit(9)
                 break
 
@@ -100,14 +100,14 @@ class Weather:
             if self.log:
                 self.log.doMessage('DBG', 'Using coefficients from', opacity_coefficients_filename)
             else:
-                print 'Using coefficients from', opacity_coefficients_filename
+                print('Using coefficients from', opacity_coefficients_filename)
             coeffs = self._retrieve_opacity_coefficients(opacity_coefficients_filename)
             return coeffs, opacity_db_range
         else:
             if self.log:
                 self.log.doMessage('ERR', 'No opacity coefficients file')
             else:
-                print 'ERROR: No opacity coefficients file'
+                print('ERROR: No opacity coefficients file')
             return False, False
 
     def _retrieve_opacity_coefficients(self, opacity_coefficients_filename):
@@ -141,7 +141,7 @@ class Weather:
                                [float(xx) for xx in line.split('{{')[3].split('}')[0].split(' ')]))
 
         else:
-            print "WARNING: Could not read coefficients for Tau in", opacity_coefficients_filename
+            print("WARNING: Could not read coefficients for Tau in", opacity_coefficients_filename)
             return False
 
         return coeffs

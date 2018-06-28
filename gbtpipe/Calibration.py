@@ -31,8 +31,8 @@ position-switched and frequency-switched calibration methods.
 
 import numpy as np
 import math
-import smoothing
-from Pipeutils import Pipeutils
+from .smoothing import *
+from .Pipeutils import Pipeutils
 
 
 class Calibration(object):

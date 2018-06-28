@@ -28,7 +28,7 @@ the gbtpipeline.
 
 # $Id$
 
-from settings import *
+from .settings import *
 
 import argparse
 
@@ -204,7 +204,7 @@ class CommandLine:
             try:
                 int_item = [int(ii) for ii in item]
             except ValueError:
-                print repr(':'.join(item)), 'not convertable to integer'
+                print(repr(':'.join(item)), 'not convertable to integer')
                 raise
 
             if 1 == len(int_item):
@@ -218,7 +218,7 @@ class CommandLine:
                 # range
                 if int_item[0] <= int_item[1]:
                     if int_item[0] < 0:
-                        print item[0], ',', item[1], 'must start with a '
+                        print(item[0], ',', item[1], 'must start with a ')
                         'non-negative number'
                         return []
 
@@ -230,19 +230,19 @@ class CommandLine:
                     for ii in thisrange:
                         oklist.add(ii)
                 else:
-                    print item[0], ',', item[1], 'needs to be in increasing '
+                    print(item[0], ',', item[1], 'needs to be in increasing ')
                     'order'
                     raise
             else:
-                print item, 'has more than 2 values'
+                print(item, 'has more than 2 values')
 
         for exitem in excludelist:
             try:
                 oklist.remove(exitem)
             except(KeyError):
                 oklist = [str(item) for item in oklist]
-                print 'ERROR: excluded item', exitem, 'does not exist in '
-                'inclusive range'
+                print('ERROR: excluded item', exitem, 'does not exist in '
+                      + 'inclusive range')
                 raise
 
         return sorted(list(oklist))
@@ -289,8 +289,8 @@ class CommandLine:
                 opt.refscans = self.parse_range(opt.refscans)
 
         except ValueError:
-            print 'ERROR: there is a malformed parameter option'
-            print '   please check your command line settings and try again.'
+            print('ERROR: there is a malformed parameter option')
+            print('   please check your command line settings and try again.')
             sys.exit()
 
         opt.units = opt.units.lower()

@@ -1,9 +1,9 @@
 
-from Pipeutils import Pipeutils
+from .Pipeutils import Pipeutils
 import numpy as np
-from Integration import Integration
-import Weather
-from PipeLogging import Logging
+from .Integration import Integration
+from .Weather import *
+from .PipeLogging import Logging
 class ConvenientIntegration(Integration):
     def __init__(self, row, log=None):
         self.pu = Pipeutils()

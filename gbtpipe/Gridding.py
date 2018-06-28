@@ -12,7 +12,7 @@ import astropy.units as u
 import astropy.constants as con
 import numpy.polynomial.legendre as legendre
 import warnings
-import Baseline
+from .Baseline import *
 import os
 from spectral_cube import SpectralCube
 from radio_beam import Beam
@@ -366,7 +366,7 @@ def griddata(filelist,
     """
 
     eulerFlag = False
-    print "Starting Gridding"
+    print("Starting Gridding")
     if outdir is None:
         outdir = os.getcwd()
 

@@ -22,14 +22,14 @@
 
 # $Id$
 
-import commandline
-from MappingPipeline import MappingPipeline
-from SdFitsIO import SdFits
-import Imaging
-from PipeLogging import Logging
-from Weather import Weather
-from Pipeutils import Pipeutils
-from settings import *
+from .commandline import *
+from .MappingPipeline import MappingPipeline
+from .SdFitsIO import SdFits
+from .Imaging import *
+from .PipeLogging import Logging
+from .Weather import Weather
+from .Pipeutils import Pipeutils
+from .settings import *
 
 import blessings
 from astropy.io import fits

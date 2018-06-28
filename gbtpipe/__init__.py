@@ -12,20 +12,20 @@ from ._astropy_init import *
 
 # For egg_info test builds to pass, put package imports here.
 if not _ASTROPY_SETUP_:
-    from Weather import Weather
-    from Calibration import Calibration
-    from PipeLogging import Logging
-    from Integration import Integration
-    from ConvenientIntegration import ConvenientIntegration
-    from ObservationRows import ObservationRows
-    from SdFitsIO import SdFits, SdFitsIndexRowReader
-    import smoothing
-    from commandline import CommandLine
-    from Gridding import griddata
-    import Baseline
-    from gbt_pipeline import *
+    from .Weather import *
+    from .Calibration import *
+    from .PipeLogging import *
+    from .Integration import *
+    from .ConvenientIntegration import ConvenientIntegration
+    from .ObservationRows import *
+    from .SdFitsIO import SdFits, SdFitsIndexRowReader
+    from .smoothing import *
+    from .commandline import CommandLine
+    from .Gridding import griddata
+    from .Baseline import *
+    from .gbt_pipeline import *
     try:
-        from CyGridding import cygriddata
+        from .CyGridding import cygriddata
     except ImportError:
         pass
 

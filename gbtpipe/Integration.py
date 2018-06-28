@@ -22,7 +22,7 @@
 
 # $Id$
 
-from Pipeutils import Pipeutils
+from .Pipeutils import Pipeutils
 
 import numpy as np
 

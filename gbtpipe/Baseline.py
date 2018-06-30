@@ -7,6 +7,59 @@ import astropy.utils.console as console
 import pyspeckit.spectrum.models.ammonia_constants as acons
 
 
+def ammoniaLoss(fullcoefs, y, x, v, noise, line='oneone', chthrow=None):
+    # Define coeffs as
+    # [Amp, v0, sigv, legendre]
+
+    Amp, V0, SigV = fullcoefs[0:3]
+    coeffs = fullcoefs[3:]
+    nh3model = np.zeros_like(y)
+    for wt, voff in zip(acons.tau_wts_dict[line],
+                        acons.voff_lines_dict[line]):
+        nh3model += wt * np.exp(-(v - voff - V0)**2 / (2 * SigV**2))
+    if chthrow:
+        nh3model -= (0.5 * np.roll(nh3model, chthrow)
+                     + 0.5 * np.roll(nh3model, -chthrow))
+
+    model = (legendre.legval(x, coeffs) + Amp * nh3model) 
+    return (y - model) / noise
+
+
+def robustBaseline(y, v, baselineIndex, blorder=1, noiserms=None):
+    x = np.linspace(-1, 1, len(y))
+    if noiserms is None:
+        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
+    opts = lsq(legendreLoss, np.zeros(blorder + 1), args=(y[baselineIndex],
+                                                          x[baselineIndex],
+                                                          noiserms),
+               loss='arctan')
+
+    return y - legendre.legval(x, opts.x)
+
+
+def baselineWithAmmonia(y, v, baselineIndex,
+                        freqthrow=4.11 * u.MHz,
+                        v0=8.5, sigmav=1.0 * u.km/u.s,
+                        line='oneone', blorder=5, noiserms=None):
+    x = np.linspace(-1, 1, len(y))
+    chthrow = (freqthrow.to(u.Hz).value
+               / acons.freq_dict[line]
+               * 299792.458 / np.abs(v[0]-v[1]))
+    chthrow = (np.round(chthrow)).astype(np.int)
+    if noiserms is None:
+        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
+
+    opts = lsq(ammoniaLoss, np.r_[[np.nanmax(y[baselineIndex]),
+                                   v[np.nanargmax(y[baselineIndex])], 1.0],
+                                  np.zeros(blorder+1)],
+               args=(y[baselineIndex],
+                     x[baselineIndex],
+                     v[baselineIndex],
+                     noiserms),
+               kwargs={'chthrow':chthrow}, loss='soft_l1')
+    return y - legendre.legval(x, opts.x[3:])
+
+
 def ammoniaWindow(spectrum, spaxis, freqthrow=4.11 * u.MHz,
                   window=3, v0=8.5, line='oneone', outerwindow=None):
     """
@@ -202,7 +255,7 @@ def rebaseline(filename, blorder=3,
             noise = mad1d(jumps) * 2**(-0.5)
             baselineIndex *= (np.abs(jumps) < 5 * noise)
             noise = mad1d((spectrum -
-                           np.roll(spectrum, -2))[baselineIndex]) * 2**(-0.5)
+                           np.roll(spectrum, -2))[baselineIndex]) * 2**(-0.5)    
         else:
             noise = mad1d((spectrum -
                            np.roll(spectrum, -2))[baselineIndex]) * 2**(-0.5)

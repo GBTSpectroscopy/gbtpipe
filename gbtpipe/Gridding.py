@@ -21,6 +21,42 @@ import matplotlib.pyplot as plt
 
 from . import __version__
 
+def is_outlier(points, thresh=3.5):
+    """
+    Pulled from:
+    https://github.com/joferkington/oost_paper_code/blob/master/utilities.py
+
+    Returns a boolean array with True if points are outliers and False 
+    otherwise.
+
+    Parameters:
+    -----------
+        points : An numobservations by numdimensions array of observations
+        thresh : The modified z-score to use as a threshold. Observations with
+            a modified z-score (based on the median absolute deviation) greater
+            than this value will be classified as outliers.
+
+    Returns:
+    --------
+        mask : A numobservations-length boolean array.
+
+    References:
+    ----------
+        Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect and
+        Handle Outliers", The ASQC Basic References in Quality Control:
+        Statistical Techniques, Edward F. Mykytka, Ph.D., Editor. 
+    """
+    if len(points.shape) == 1:
+        points = points[:,None]
+    median = np.median(points, axis=0)
+    diff = np.sum((points - median)**2, axis=-1)
+    diff = np.sqrt(diff)
+    med_abs_deviation = np.median(diff)
+
+    modified_z_score = 0.6745 * diff / med_abs_deviation
+
+    return modified_z_score > thresh
+
 def postConvolve(filein, bmaj=None, bmin=None, 
                  bpa=0 * u.deg, beamscale=1.1,
                  fileout=None):
@@ -271,6 +307,7 @@ def griddata(filelist,
              outdir=None, 
              outname=None,
              dtype=np.float64,
+	     flagSpatialOutlier=False
              **kwargs):
 
     """Gridding code for GBT spectral scan data produced by pipeline.
@@ -358,6 +395,11 @@ def griddata(filelist,
     outname : str
         Output directory file name.  Defaults to object name in the
         original spectra.
+
+    flagSpatialOutlier : bool
+        Setting to True will remove scans with positions far outside the 
+	bounding box of the regular scan pattern. Used to catch instances
+	where the encoder records erroneous positions. 
 
     Returns
     -------
@@ -472,6 +514,12 @@ def griddata(filelist,
     for thisfile in filelist:
         ctr += 1
         s = fits.open(thisfile)
+	if flagSpatialOutlier:
+		# Remove outliers in Lat/Lon space
+		f = np.where(is_outlier(s[1].data['CRVAL2'], thresh=1.5)!=True)
+		s[1].data = s[1].data[f]
+		f = np.where(is_outlier(s[1].data['CRVAL3'], thresh=1.5)!=True)
+		s[1].data = s[1].data[f]
         print("Now processing {0}".format(thisfile))
         print("This is file {0} of {1}".format(ctr, len(filelist)))
         if len(s[1].data) == 0:

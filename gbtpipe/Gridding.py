@@ -307,7 +307,7 @@ def griddata(filelist,
              outdir=None, 
              outname=None,
              dtype=np.float64,
-	     flagSpatialOutlier=False
+             flagSpatialOutlier=False,
              **kwargs):
 
     """Gridding code for GBT spectral scan data produced by pipeline.
@@ -398,8 +398,8 @@ def griddata(filelist,
 
     flagSpatialOutlier : bool
         Setting to True will remove scans with positions far outside the 
-	bounding box of the regular scan pattern. Used to catch instances
-	where the encoder records erroneous positions. 
+        bounding box of the regular scan pattern. Used to catch instances
+        where the encoder records erroneous positions. 
 
     Returns
     -------
@@ -514,12 +514,12 @@ def griddata(filelist,
     for thisfile in filelist:
         ctr += 1
         s = fits.open(thisfile)
-	if flagSpatialOutlier:
-		# Remove outliers in Lat/Lon space
-		f = np.where(is_outlier(s[1].data['CRVAL2'], thresh=1.5)!=True)
-		s[1].data = s[1].data[f]
-		f = np.where(is_outlier(s[1].data['CRVAL3'], thresh=1.5)!=True)
-		s[1].data = s[1].data[f]
+        if flagSpatialOutlier:
+                # Remove outliers in Lat/Lon space
+                f = np.where(is_outlier(s[1].data['CRVAL2'], thresh=1.5)!=True)
+                s[1].data = s[1].data[f]
+                f = np.where(is_outlier(s[1].data['CRVAL3'], thresh=1.5)!=True)
+                s[1].data = s[1].data[f]
         print("Now processing {0}".format(thisfile))
         print("This is file {0} of {1}".format(ctr, len(filelist)))
         if len(s[1].data) == 0:

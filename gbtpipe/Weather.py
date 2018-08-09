@@ -44,8 +44,15 @@ class Weather:
         self.time_range = None
         self.db_time_range = None
         self.log = None
-        self.database = database
-
+        try:
+            self.database = os.environ['GBTWEATHER']
+        except KeyError:
+            if os.path.isdir(database):
+                self.database = database
+            else:
+                raise IOError('GBT Weather Database not found. '+
+                              'Set your GBTWEATHER environment variable.')
+        
     def _opacity_database(self, timestamp, request='Opacity'):
         # retrieve a list of opacity coefficients files, based on a given directory
         # and filename structure

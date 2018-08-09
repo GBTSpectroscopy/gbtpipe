@@ -23,10 +23,10 @@
 # $Id$
 
 # TODO: strip fitsio dependencies.  We can do better.
-
+from __future__ import unicode_literals
+from builtins import str
 from astropy.io import fits
 import fitsio
-
 from .Integration import Integration
 from .Calibration import Calibration
 from .SdFitsIO import SdFits
@@ -251,7 +251,8 @@ class MappingPipeline:
             rows = signalRows['ROW']
             columns = tuple(self.infile[ext].get_colnames())
             firstIntegration = Integration(self.infile[ext][columns][rows[0]])
-            targetname = firstIntegration['OBJECT'].replace(" ", "")
+            targetname = str(firstIntegration['OBJECT'],
+                             encoding='UTF-8').replace(" ", "")
 
         except KeyError:
             print('WARNING: Can not find data for scan {scan} window {win} feed {feed} polarization {pol}'.format(scan=self.cl.mapscans[0], win=window, feed=feed, pol=pol))
@@ -270,7 +271,10 @@ class MappingPipeline:
 
         # create a new table
         old_stdout = sys.stdout
-        from cStringIO import StringIO
+        try:
+            from cStringIO import StringIO
+        except ImportError:
+            from io import StringIO
         sys.stdout = StringIO()
         # redirect stdout to not get clobber file warnings
         self.outfile = fitsio.FITS(self.outdir + self.outfilename, 'rw', clobber=True)

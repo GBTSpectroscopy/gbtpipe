@@ -191,7 +191,7 @@ class Weather:
         if ((not self.db_time_range) or
             (self.db_time_range == 'LATEST' and
              not (self.time_range[0] <= integration_mjd_timestamp < self.time_range[1])) or
-            (self.db_time_range and
+            ((type(self.db_time_range) is list) and
              not (self.db_time_range[0] <= integration_mjd_timestamp < self.db_time_range[1]))):
 
             log.doMessage('DBG', '-----------------------------------------------------')
@@ -207,7 +207,7 @@ class Weather:
             if bool(self.time_range):
                 log.doMessage('DBG', '   time in range ==', bool(self.time_range and (self.time_range[0] <= integration_mjd_timestamp <= self.time_range[1])))
             log.doMessage('DBG', 'DB time range', self.db_time_range)
-            if bool(self.db_time_range):
+            if bool(type(self.db_time_range) is list):
                 log.doMessage('DBG', '   time in DB range ==', bool(self.db_time_range and (self.db_time_range[0] <= integration_mjd_timestamp <= self.db_time_range[1])))
 
             self.opacity_coeffs, self.db_time_range = self._opacity_database(integration_mjd_timestamp, request=request)

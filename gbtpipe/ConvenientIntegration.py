@@ -8,7 +8,7 @@ class ConvenientIntegration(Integration):
     def __init__(self, row, log=None):
         self.pu = Pipeutils()
         self.data = row
-        self.weather = Weather.Weather()
+        self.weather = Weather()
         if not log:
             self.log = Logging()
     def mjd(self):

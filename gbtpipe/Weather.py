@@ -150,7 +150,6 @@ class Weather:
         else:
             print("WARNING: Could not read coefficients for Tau in", opacity_coefficients_filename)
             return False
-
         return coeffs
 
     def retrieve_zenith_opacity(self, integration_mjd_timestamp, freq_hz, 
@@ -177,10 +176,9 @@ class Weather:
                self.time_range[1])))):
 
             return self.zenith_opacity
-
         self.last_integration_mjd_timestamp = integration_mjd_timestamp
         self.last_requested_freq_ghz = freq_ghz
-          # if we don't have a db time range OR
+        # if we don't have a db time range OR
         # we do have a time range AND
         #   the range is 'LATEST' AND
         #      timestamp is not w/in the same hour as the last set of coeffs, OR
@@ -188,12 +186,12 @@ class Weather:
         #      our new timestamp is not in the range
         # THEN
         # get another set of coefficients from a different file
-        if ((not self.db_time_range) or
-            (self.db_time_range == 'LATEST' and
-             not (self.time_range[0] <= integration_mjd_timestamp < self.time_range[1])) or
-            ((type(self.db_time_range) is list) and
-             not (self.db_time_range[0] <= integration_mjd_timestamp < self.db_time_range[1]))):
-
+        if (forcecalc or
+            ((not self.db_time_range) or
+             (self.db_time_range == 'LATEST' and
+              not (self.time_range[0] <= integration_mjd_timestamp < self.time_range[1])) or
+             ((type(self.db_time_range) is list) and
+              not (self.db_time_range[0] <= integration_mjd_timestamp < self.db_time_range[1])))):
             log.doMessage('DBG', '-----------------------------------------------------')
             log.doMessage('DBG', 'Time or Frequency out of range. Determine new opacity')
             log.doMessage('DBG', '-----------------------------------------------------')
@@ -209,14 +207,12 @@ class Weather:
             log.doMessage('DBG', 'DB time range', self.db_time_range)
             if bool(type(self.db_time_range) is list):
                 log.doMessage('DBG', '   time in DB range ==', bool(self.db_time_range and (self.db_time_range[0] <= integration_mjd_timestamp <= self.db_time_range[1])))
-
+            
             self.opacity_coeffs, self.db_time_range = self._opacity_database(integration_mjd_timestamp, request=request)
-
             if (not self.opacity_coeffs) or (not self.db_time_range):
                 return False
 
             log.doMessage('DBG', 'DB time range:', self.db_time_range)
-
         for coeffs_line in self.opacity_coeffs:
             if (2 <= freq_ghz <= 22):
                 self.frequency_range = (2, 22)
@@ -252,8 +248,8 @@ class Weather:
             self.zenith_opacity = self.cal.zenith_opacity(
                 time_corrected_coeffs, freq_ghz)
             log.doMessage('DBG', 'Zenith opacity:', self.zenith_opacity)
+            return(self.zenith_opacity)
         
-            return self.zenith_opacity
         if 'Tatm' in request:
             self.Tatm = self.cal.Tatm_from_coeffs(time_corrected_coeffs,
                                                   freq_ghz)

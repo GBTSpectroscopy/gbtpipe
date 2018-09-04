@@ -403,9 +403,9 @@ def griddata(filelist,
         where the encoder records erroneous positions. 
 
     gainDict : dict 
-        Dictionary that has feed numbers as keys and returns the gain
-        values for that feed.
-
+        Dictionary that has a tuple of feed and polarization numbers
+        as keys and returns the gain values for that feed.
+    
     Returns
     -------
     None
@@ -595,10 +595,10 @@ def griddata(filelist,
 
             specData = spectrum['DATA']
             if gainDict:
-                specwt = 1.0/gainDict[(str(spectrum['FDNUM']).strip(),
+                feedwt = 1.0/gainDict[(str(spectrum['FDNUM']).strip(),
                                        str(spectrum['PLNUM']).strip())]
             else:
-                specwt = 1.0
+                feedwt = 1.0
             if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
                 continue
             # baseline fit

@@ -308,6 +308,7 @@ def griddata(filelist,
              outname=None,
              dtype=np.float64,
              flagSpatialOutlier=False,
+             gainDict=None,
              **kwargs):
 
     """Gridding code for GBT spectral scan data produced by pipeline.
@@ -400,6 +401,10 @@ def griddata(filelist,
         Setting to True will remove scans with positions far outside the 
         bounding box of the regular scan pattern. Used to catch instances
         where the encoder records erroneous positions. 
+
+    gainDict : dict 
+        Dictionary that has feed numbers as keys and returns the gain
+        values for that feed.
 
     Returns
     -------
@@ -589,6 +594,11 @@ def griddata(filelist,
                                             for ss in baselineRegion])
 
             specData = spectrum['DATA']
+            if gainDict:
+                specwt = 1.0/gainDict[(str(spectrum['FDNUM']).strip(),
+                                       str(spectrum['PLNUM']).strip())]
+            else:
+                specwt = 1.0
             if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
                 continue
             # baseline fit
@@ -615,7 +625,7 @@ def griddata(filelist,
             specData = channelShift(specData, -DeltaChan)
  
             outslice = (specData)[startChannel:endChannel]
-            spectrum_wt = np.isfinite(outslice).astype(np.float)
+            spectrum_wt = np.isfinite(outslice).astype(np.float) * feedwt
             outslice = np.nan_to_num(outslice)
             xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[idx],
                                                         latCoord[idx],

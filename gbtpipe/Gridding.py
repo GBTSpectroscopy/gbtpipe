@@ -595,8 +595,11 @@ def griddata(filelist,
 
             specData = spectrum['DATA']
             if gainDict:
-                feedwt = 1.0/gainDict[(str(spectrum['FDNUM']).strip(),
-                                       str(spectrum['PLNUM']).strip())]
+                try:
+                    feedwt = 1.0/gainDict[(str(spectrum['FDNUM']).strip(),
+                                           str(spectrum['PLNUM']).strip())]
+                except KeyError:
+                    continue
             else:
                 feedwt = 1.0
             if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':

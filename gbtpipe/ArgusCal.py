@@ -186,7 +186,6 @@ def SpatialMask(integrations, mask=None, wcs=None):
     x, y = wcs.celestial.wcs_world2pix(integrations.data['CRVAL2'],
                                      integrations.data['CRVAL3'], 0)
     OffMask = np.array(mask[y.astype(np.int), x.astype(np.int)], dtype=np.bool)
-    import pdb; pdb.set_trace()
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside zone of avoidance")
         warnings.warn("Using row ends")

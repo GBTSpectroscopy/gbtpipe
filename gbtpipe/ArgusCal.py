@@ -28,7 +28,40 @@ def makelogdir():
     if not os.path.exists('log'):
         os.mkdir('log')
 
+def findfeeds(cl_params, allfiles, mapscans, feednum, log=log):
+    """ 
+    This finds identical data from another feed.
+    Needed for doing the beam swap
+    """
+    thispol = 0
+    thiswin = 0
+    cl_params2 = copy.deepcopy(cl_params)
+    for anotherfile in allfiles:
+        cl_params2.infile = anotherfile
+        sdf = SdFits()
+        cal = Calibration()
+        indexfile = sdf.nameIndexFile(command_options.infilename)
+        row_list, summary = sdf.parseSdfitsIndex(indexfile,
+                                                 mapscans=mapscans)
+        feedlist = (row_list.feeds())
+        if feednum in feedlist:
+            rows = row_list.get(thisscan, feednum,
+                                thispol, thiswin)
+            pipe = MappingPipeline(command_options,
+                                   row_list,
+                                   feednum,
+                                   thispol,
+                                   thiswin,
+                                   None, outdir=None,
+                                   suffix=None)
+            columns = tuple(pipe.infile[ext].get_colnames())
+            integs = ConvenientIntegration(pipe.infile[ext][columns][rows],
+                                           log=log)
+            pipe.infile.close()
+            return(integs)
+    return(None)
 
+        
 def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
             weather=None, log=None):
     """
@@ -301,11 +334,11 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
             log.doMessage('ERR', 'Could not open index file', indexfile)
             log.close()
             return False
-            # sys.exit()
-
-    for infilename in glob.glob(input_directory + '/' +
-                                os.path.basename(input_directory) +
-                                '*.fits'):
+        # sys.exit()
+    allfiles = glob.glob(input_directory + '/' +
+                         os.path.basename(input_directory) +
+                         '*.fits')
+    for filectr, infilename in allfiles:
             log.doMessage('DBG', 'Attempting to calibrate',
                           os.path.basename(infilename).rstrip('.fits'))
 
@@ -377,10 +410,10 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                         # were swapped before 2018-10-22 19:30:00 UT
 
                         if mjds[0] < 58413.81250000 and (thisfeed == 1):
-                            rows2 = row_list.get(thisscan, 2,
-                                                thispol, thiswin)
-                            ext2 = rows['EXTENSION']
-                            rows2 = rows['ROW']
+                            rows2 = findfeed(cl_params, allfiles,
+                                             command_options.mapscans, 2)
+                            ext2 = rows2['EXTENSION']
+                            rows2 = rows2['ROW']
                             columns2 = tuple(pipe.infile[ext].get_colnames())
                             integs2 = ConvenientIntegration(
                                 pipe.infile[ext][columns][rows], log=log)

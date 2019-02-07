@@ -359,7 +359,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                         columns = tuple(pipe.infile[ext].get_colnames())
                         integs = ConvenientIntegration(
                             pipe.infile[ext][columns][rows], log=log)
-
+                        
                         # Grab everything we need to get a Tsys measure
                         timestamps = integs.data['DATE-OBS']
                         elevation = np.median(integs.data['ELEVATIO'])
@@ -373,6 +373,34 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                         tau = cal.elevation_adjusted_opacity(zenithtau,
                                                              elevation)
 
+                        # ARGUS beams 2 and 3 (software 1 and 2)
+                        # were swapped before 2018-10-22 19:30:00 UT
+
+                        if mjds[0] < 58413.81250000 and (thisfeed == 1):
+                            rows2 = row_list.get(thisscan, 2,
+                                                thispol, thiswin)
+                            ext2 = rows['EXTENSION']
+                            rows2 = rows['ROW']
+                            columns2 = tuple(pipe.infile[ext].get_colnames())
+                            integs2 = ConvenientIntegration(
+                                pipe.infile[ext][columns][rows], log=log)
+                            integs.data['CRVAL2'] = integs2.data['CRVAL2']
+                            integs.data['CRVAL3'] = integs2.data['CRVAL3']
+
+                        if mjds[0] < 58413.81250000 and (thisfeed == 2):
+                            rows2 = row_list.get(thisscan, 3,
+                                                 thispol, thiswin)
+                            ext2 = rows['EXTENSION']
+                            rows2 = rows['ROW']
+                            columns2 = tuple(pipe.infile[ext].get_colnames())
+                            integs2 = ConvenientIntegration(
+                                pipe.infile[ext][columns][rows], log=log)
+                            integs.data['CRVAL2'] = integs2.data['CRVAL2']
+                            integs.data['CRVAL3'] = integs2.data['CRVAL3']
+                        
+                            
+
+                        
                         # This block actually does the calibration
                         ON = integs.data['DATA']
                         # This identifies which scans to include as OFFs
@@ -439,14 +467,17 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                         medianTA.shape = (1,) + medianTA.shape
                         medianTA = np.ones((ON.shape[1], 1)) * medianTA
                         TAstar = TA - medianTA.T
-                        for ctr, row in enumerate(rows):
+                        for ctr, rownum in enumerate(rows):
                             # This updates the output SDFITS file with
                             # the newly calibrated data.
-                            row = Integration(
-                                pipe.infile[ext][columns][row])
-                            row.data['DATA'] = TAstar[ctr,:]
-                            row.data['TSYS'] = tsysStar
-                            row.data['TUNIT7'] = 'Ta*'
-                            pipe.outfile[-1].append(row.data)
+
+                            # row = Integration(
+                            #     pipe.infile[ext][columns][rownum])
+                            row = np.array([integs.data[ctr]])
+                            row['DATA'] = TAstar[ctr,:]
+                            row['TSYS'] = tsysStar
+                            row['TUNIT7'] = 'Ta*'
+                            pipe.outfile[-1].append(row)
+                    pipe.infile.close()
                     pipe.outfile.close()
     return True

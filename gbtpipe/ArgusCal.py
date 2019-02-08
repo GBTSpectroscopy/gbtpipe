@@ -28,7 +28,47 @@ def makelogdir():
     if not os.path.exists('log'):
         os.mkdir('log')
 
+def findfeed(cl_params, allfiles, mapscans, thisscan, feednum,
+             log=None):
+    """ 
+    This finds identical data from another feed.
+    Needed for doing the beam swap
+    """
+    thispol = 0
+    thiswin = 0
+    cl_params2 = copy.deepcopy(cl_params)
+    for anotherfile in allfiles:
+        cl_params2.infile = anotherfile
+        sdf = SdFits()
+        cal = Calibration()
+        indexfile = sdf.nameIndexFile(anotherfile)
+        row_list, summary = sdf.parseSdfitsIndex(indexfile,
+                                                 mapscans=mapscans)
+        feedlist = (row_list.feeds())
+        if feednum in feedlist:
+            rows = row_list.get(thisscan, feednum,
+                                thispol, thiswin)
+            pipe = MappingPipeline(cl_params,
+                                   row_list,
+                                   feednum,
+                                   thispol,
+                                   thiswin,
+                                   None, outdir='.',
+                                   suffix='_tmp')
+            ext = rows['EXTENSION']
+            rows =rows['ROW']
+            columns = tuple(pipe.infile[ext].get_colnames())
+            integs = ConvenientIntegration(pipe.infile[ext][columns][rows],
+                                           log=log)
+            pipe.infile.close()
+            pipe.outfile.close()
+            crap = glob.glob('*_tmp.fits')
+            for thisfile in crap:
+                os.remove(thisfile)
+            return(integs)
+    return(None)
 
+        
 def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
             weather=None, log=None):
     """
@@ -301,11 +341,11 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
             log.doMessage('ERR', 'Could not open index file', indexfile)
             log.close()
             return False
-            # sys.exit()
-
-    for infilename in glob.glob(input_directory + '/' +
-                                os.path.basename(input_directory) +
-                                '*.fits'):
+        # sys.exit()
+    allfiles = glob.glob(input_directory + '/' +
+                         os.path.basename(input_directory) +
+                         '*.fits')
+    for filectr, infilename in enumerate(allfiles):
             log.doMessage('DBG', 'Attempting to calibrate',
                           os.path.basename(infilename).rstrip('.fits'))
 
@@ -349,9 +389,10 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
 
                     for thisscan in cl_params.mapscans:
                         if verbose:
-                            sys.stdout.flush()
                             print("Now Processing Scan {0} for Feed {1}".format(
-                                    thisscan, thisfeed), end='\r')
+                                thisscan, thisfeed).ljust(50), end='\r')
+                            sys.stdout.flush()
+
                         rows = row_list.get(thisscan, thisfeed,
                                             thispol, thiswin)
                         ext = rows['EXTENSION']
@@ -359,7 +400,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                         columns = tuple(pipe.infile[ext].get_colnames())
                         integs = ConvenientIntegration(
                             pipe.infile[ext][columns][rows], log=log)
-
+                        
                         # Grab everything we need to get a Tsys measure
                         timestamps = integs.data['DATE-OBS']
                         elevation = np.median(integs.data['ELEVATIO'])
@@ -373,6 +414,25 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                         tau = cal.elevation_adjusted_opacity(zenithtau,
                                                              elevation)
 
+                        # ARGUS beams 2 and 3 (software 1 and 2)
+                        # were swapped before 2018-10-22 19:30:00 UT
+
+                        if mjds[0] < 58413.81250000 and (thisfeed == 1):
+                            integs2 = findfeed(cl_params, allfiles,
+                                               command_options.mapscans,
+                                               thisscan, 2,
+                                               log=log)
+                            integs.data['CRVAL2'] = integs2.data['CRVAL2']
+                            integs.data['CRVAL3'] = integs2.data['CRVAL3']
+
+                        if mjds[0] < 58413.81250000 and (thisfeed == 2):
+                            integs2 = findfeed(cl_params, allfiles,
+                                               command_options.mapscans,
+                                               thisscan, 1,
+                                               log=log)
+                            integs.data['CRVAL2'] = integs2.data['CRVAL2']
+                            integs.data['CRVAL3'] = integs2.data['CRVAL3']
+                        
                         # This block actually does the calibration
                         ON = integs.data['DATA']
                         # This identifies which scans to include as OFFs
@@ -439,14 +499,17 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                         medianTA.shape = (1,) + medianTA.shape
                         medianTA = np.ones((ON.shape[1], 1)) * medianTA
                         TAstar = TA - medianTA.T
-                        for ctr, row in enumerate(rows):
+                        for ctr, rownum in enumerate(rows):
                             # This updates the output SDFITS file with
                             # the newly calibrated data.
-                            row = Integration(
-                                pipe.infile[ext][columns][row])
-                            row.data['DATA'] = TAstar[ctr,:]
-                            row.data['TSYS'] = tsysStar
-                            row.data['TUNIT7'] = 'Ta*'
-                            pipe.outfile[-1].append(row.data)
+
+                            # row = Integration(
+                            #     pipe.infile[ext][columns][rownum])
+                            row = np.array([integs.data[ctr]])
+                            row['DATA'] = TAstar[ctr,:]
+                            row['TSYS'] = tsysStar
+                            row['TUNIT7'] = 'Ta*'
+                            pipe.outfile[-1].append(row)
+                    pipe.infile.close()
                     pipe.outfile.close()
     return True

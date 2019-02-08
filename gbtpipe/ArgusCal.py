@@ -389,9 +389,10 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
 
                     for thisscan in cl_params.mapscans:
                         if verbose:
-                            sys.stdout.flush()
                             print("Now Processing Scan {0} for Feed {1}".format(
                                 thisscan, thisfeed).ljust(50), end='\r')
+                            sys.stdout.flush()
+
                         rows = row_list.get(thisscan, thisfeed,
                                             thispol, thiswin)
                         ext = rows['EXTENSION']
@@ -431,9 +432,6 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                log=log)
                             integs.data['CRVAL2'] = integs2.data['CRVAL2']
                             integs.data['CRVAL3'] = integs2.data['CRVAL3']
-                        
-                            
-
                         
                         # This block actually does the calibration
                         ON = integs.data['DATA']

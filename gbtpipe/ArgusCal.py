@@ -28,7 +28,8 @@ def makelogdir():
     if not os.path.exists('log'):
         os.mkdir('log')
 
-def findfeeds(cl_params, allfiles, mapscans, feednum, log=log):
+def findfeed(cl_params, allfiles, mapscans, thisscan, feednum,
+             log=None):
     """ 
     This finds identical data from another feed.
     Needed for doing the beam swap
@@ -40,24 +41,30 @@ def findfeeds(cl_params, allfiles, mapscans, feednum, log=log):
         cl_params2.infile = anotherfile
         sdf = SdFits()
         cal = Calibration()
-        indexfile = sdf.nameIndexFile(command_options.infilename)
+        indexfile = sdf.nameIndexFile(anotherfile)
         row_list, summary = sdf.parseSdfitsIndex(indexfile,
                                                  mapscans=mapscans)
         feedlist = (row_list.feeds())
         if feednum in feedlist:
             rows = row_list.get(thisscan, feednum,
                                 thispol, thiswin)
-            pipe = MappingPipeline(command_options,
+            pipe = MappingPipeline(cl_params,
                                    row_list,
                                    feednum,
                                    thispol,
                                    thiswin,
-                                   None, outdir=None,
-                                   suffix=None)
+                                   None, outdir='.',
+                                   suffix='_tmp')
+            ext = rows['EXTENSION']
+            rows =rows['ROW']
             columns = tuple(pipe.infile[ext].get_colnames())
             integs = ConvenientIntegration(pipe.infile[ext][columns][rows],
                                            log=log)
             pipe.infile.close()
+            pipe.outfile.close()
+            crap = glob.glob('*_tmp.fits')
+            for thisfile in crap:
+                os.remove(thisfile)
             return(integs)
     return(None)
 
@@ -338,7 +345,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
     allfiles = glob.glob(input_directory + '/' +
                          os.path.basename(input_directory) +
                          '*.fits')
-    for filectr, infilename in allfiles:
+    for filectr, infilename in enumerate(allfiles):
             log.doMessage('DBG', 'Attempting to calibrate',
                           os.path.basename(infilename).rstrip('.fits'))
 
@@ -384,7 +391,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                         if verbose:
                             sys.stdout.flush()
                             print("Now Processing Scan {0} for Feed {1}".format(
-                                    thisscan, thisfeed), end='\r')
+                                thisscan, thisfeed).ljust(50), end='\r')
                         rows = row_list.get(thisscan, thisfeed,
                                             thispol, thiswin)
                         ext = rows['EXTENSION']
@@ -410,24 +417,18 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                         # were swapped before 2018-10-22 19:30:00 UT
 
                         if mjds[0] < 58413.81250000 and (thisfeed == 1):
-                            rows2 = findfeed(cl_params, allfiles,
-                                             command_options.mapscans, 2)
-                            ext2 = rows2['EXTENSION']
-                            rows2 = rows2['ROW']
-                            columns2 = tuple(pipe.infile[ext].get_colnames())
-                            integs2 = ConvenientIntegration(
-                                pipe.infile[ext][columns][rows], log=log)
+                            integs2 = findfeed(cl_params, allfiles,
+                                               command_options.mapscans,
+                                               thisscan, 2,
+                                               log=log)
                             integs.data['CRVAL2'] = integs2.data['CRVAL2']
                             integs.data['CRVAL3'] = integs2.data['CRVAL3']
 
                         if mjds[0] < 58413.81250000 and (thisfeed == 2):
-                            rows2 = row_list.get(thisscan, 3,
-                                                 thispol, thiswin)
-                            ext2 = rows['EXTENSION']
-                            rows2 = rows['ROW']
-                            columns2 = tuple(pipe.infile[ext].get_colnames())
-                            integs2 = ConvenientIntegration(
-                                pipe.infile[ext][columns][rows], log=log)
+                            integs2 = findfeed(cl_params, allfiles,
+                                               command_options.mapscans,
+                                               thisscan, 1,
+                                               log=log)
                             integs.data['CRVAL2'] = integs2.data['CRVAL2']
                             integs.data['CRVAL3'] = integs2.data['CRVAL3']
                         

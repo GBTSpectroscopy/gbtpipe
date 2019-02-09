@@ -202,8 +202,7 @@ def ZoneOfAvoidance(integrations, center=None,
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside zone of avoidance")
         warnings.warn("Using row ends")
-        OffMask = RowEnds(integrations, off_frac=off_frac,
-                          exclude_frac=off_frac/2)
+        OffMask = RowEnds(integrations, off_frac=off_frac)
         return(OffMask)
     return(OffMask)
 
@@ -229,8 +228,7 @@ def SpatialMask(integrations, mask=None, wcs=None):
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside zone of avoidance")
         warnings.warn("Using row ends")
-        OffMask = RowEnds(integrations, off_frac=off_frac,
-                          exclude_frac=off_frac/2)
+        OffMask = RowEnds(integrations, off_frac=off_frac)
         return(OffMask)
     return(OffMask)
 

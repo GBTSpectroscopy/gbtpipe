@@ -15,7 +15,7 @@ from .gbt_pipeline import *
 import numpy as np
 import glob
 import os
-import fitsio
+# import fitsio
 import copy
 import warnings
 import sys

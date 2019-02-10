@@ -40,9 +40,8 @@ def findfeed(cl_params, allfiles, mapscans, thisscan, feednum,
     for anotherfile in allfiles:
         cl_params2.infile = anotherfile
         sdf = SdFits()
-        cal = Calibration()
         indexfile = sdf.nameIndexFile(anotherfile)
-        row_list, summary = sdf.parseSdfitsIndex(indexfile,
+        row_list, _ = sdf.parseSdfitsIndex(indexfile,
                                                  mapscans=mapscans)
         feedlist = (row_list.feeds())
         if feednum in feedlist:
@@ -163,7 +162,7 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
     # Pull warm load temperature from the data
     twarm = np.mean(integ1.data['TWARM']+273.15)
     tbg = 2.725  # It's the CMB
-    tambient = np.mean(integ1.data['TAMBIENT'])
+    # tambient = np.mean(integ1.data['TAMBIENT'])
     avgfreq = np.mean(integ1.data['OBSFREQ'])
 
     # Use weather model to get the atmospheric temperature and opacity
@@ -209,7 +208,7 @@ def ZoneOfAvoidance(integrations, center=None,
 def FrequencySwitch(integrations):
     raise(NotImplementedError)
 
-def SpatialMask(integrations, mask=None, wcs=None):
+def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25):
     """
     This function defines the OFFs based on where they land in a
     spatial mask. For performance reasons, it's good import this

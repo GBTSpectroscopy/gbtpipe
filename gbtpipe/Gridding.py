@@ -567,6 +567,8 @@ def griddata(filelist,
             latCoord = s[1].data['CRVAL3']
 
         if plotTimeSeries:
+            if not os.access(outdir +'/' + plotsubdir, os.W_OK):
+                os.mkdir(outdir + '/' + plotsubdir)
             vmin=np.nanpercentile(s[1].data['DATA'],15)
             vmed=np.nanpercentile(s[1].data['DATA'],50)
             vmax=np.nanpercentile(s[1].data['DATA'],85)

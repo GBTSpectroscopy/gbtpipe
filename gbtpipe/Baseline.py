@@ -185,7 +185,7 @@ def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
 def rebaseline(filename, blorder=3, 
                baselineRegion=[slice(0, 800, 1), slice(-800, 0, 1)],
                windowFunction=None, blankBaseline=False,
-               flagSpike=True, v0=None, VlsrByCoord=None, 
+               flagSpike=True, v0=None, VlsrByCoord=None, verbose=False,
                **kwargs):
     """
     Rebaseline a data cube using robust regression of Legendre polynomials.
@@ -226,7 +226,8 @@ def rebaseline(filename, blorder=3,
     nuindex = np.arange(cube.shape[0])
     runmin = nuindex[-1]
     runmax = nuindex[0]
-    pb = console.ProgressBar(len(y))
+    if verbose:
+        pb = console.ProgressBar(len(y))
     for thisy, thisx in zip(y, x):
         spectrum = cube[:, thisy, thisx].value
 
@@ -270,7 +271,8 @@ def rebaseline(filename, blorder=3,
             outcube[:, thisy, thisx] = robustBaseline(spectrum, baselineIndex,
                                                       blorder=blorder,
                                                       noiserms=noise)
-        pb.update()
+        if verbose:
+            pb.update()
     outsc = SpectralCube(outcube, cube.wcs, header=cube.header,
                          meta={'BUNIT':cube.header['BUNIT']})
     outsc = outsc[runmin:runmax, :, :]  # cut beyond baseline edges

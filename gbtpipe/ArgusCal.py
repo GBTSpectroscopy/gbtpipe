@@ -15,7 +15,7 @@ from .gbt_pipeline import *
 import numpy as np
 import glob
 import os
-import fitsio
+# import fitsio
 import copy
 import warnings
 import sys
@@ -40,9 +40,8 @@ def findfeed(cl_params, allfiles, mapscans, thisscan, feednum,
     for anotherfile in allfiles:
         cl_params2.infile = anotherfile
         sdf = SdFits()
-        cal = Calibration()
         indexfile = sdf.nameIndexFile(anotherfile)
-        row_list, summary = sdf.parseSdfitsIndex(indexfile,
+        row_list, _ = sdf.parseSdfitsIndex(indexfile,
                                                  mapscans=mapscans)
         feedlist = (row_list.feeds())
         if feednum in feedlist:
@@ -54,7 +53,7 @@ def findfeed(cl_params, allfiles, mapscans, thisscan, feednum,
                                    thispol,
                                    thiswin,
                                    None, outdir='.',
-                                   suffix='_tmp')
+                                   suffix='_tmp', log=log)
             ext = rows['EXTENSION']
             rows =rows['ROW']
             columns = tuple(pipe.infile[ext].get_colnames())
@@ -163,7 +162,7 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
     # Pull warm load temperature from the data
     twarm = np.mean(integ1.data['TWARM']+273.15)
     tbg = 2.725  # It's the CMB
-    tambient = np.mean(integ1.data['TAMBIENT'])
+    # tambient = np.mean(integ1.data['TAMBIENT'])
     avgfreq = np.mean(integ1.data['OBSFREQ'])
 
     # Use weather model to get the atmospheric temperature and opacity
@@ -202,15 +201,14 @@ def ZoneOfAvoidance(integrations, center=None,
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside zone of avoidance")
         warnings.warn("Using row ends")
-        OffMask = RowEnds(integrations, off_frac=off_frac,
-                          exclude_frac=off_frac/2)
+        OffMask = RowEnds(integrations, off_frac=off_frac)
         return(OffMask)
     return(OffMask)
 
 def FrequencySwitch(integrations):
     raise(NotImplementedError)
 
-def SpatialMask(integrations, mask=None, wcs=None):
+def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25):
     """
     This function defines the OFFs based on where they land in a
     spatial mask. For performance reasons, it's good import this
@@ -229,8 +227,7 @@ def SpatialMask(integrations, mask=None, wcs=None):
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside zone of avoidance")
         warnings.warn("Using row ends")
-        OffMask = RowEnds(integrations, off_frac=off_frac,
-                          exclude_frac=off_frac/2)
+        OffMask = RowEnds(integrations, off_frac=off_frac)
         return(OffMask)
     return(OffMask)
 
@@ -374,7 +371,8 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                    thispol,
                                                    thiswin,
                                                    None, outdir=outdir,
-                                                   suffix=suffix)
+                                                   suffix=suffix,
+                                                   log=log)
                 except KeyError:
                     pipe = None
                     pass

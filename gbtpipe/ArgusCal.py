@@ -53,7 +53,7 @@ def findfeed(cl_params, allfiles, mapscans, thisscan, feednum,
                                    thispol,
                                    thiswin,
                                    None, outdir='.',
-                                   suffix='_tmp')
+                                   suffix='_tmp', log=log)
             ext = rows['EXTENSION']
             rows =rows['ROW']
             columns = tuple(pipe.infile[ext].get_colnames())
@@ -371,7 +371,8 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                    thispol,
                                                    thiswin,
                                                    None, outdir=outdir,
-                                                   suffix=suffix)
+                                                   suffix=suffix,
+                                                   log=log)
                 except KeyError:
                     pipe = None
                     pass

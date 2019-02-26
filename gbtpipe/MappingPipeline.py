@@ -47,11 +47,10 @@ if CREATE_PLOTS:
 class MappingPipeline:
 
     def __init__(self, cl_params, row_list, feed, window, pol, term,
-                 outdir=None, suffix=''):
+                 outdir=None, suffix='', log=None):
 
         self.term = term
-        self.log = None
-
+        self.log = log
         self.pu = Pipeutils()
         self.cal = Calibration(cl_params.smoothing_kernel)
         self.weather = Weather()
@@ -262,8 +261,9 @@ class MappingPipeline:
             '_scan_' + str(self.cl.mapscans[0]) + '_' +\
             str(self.cl.mapscans[-1]) + '_window' + str(window) +\
             '_feed' + str(feed) + '_pol' + str(pol) + suffix +'.fits'
-
-        self.log = Logging(self.cl, self.outfilename.rstrip('.fits'))
+        
+        if self.log is None:
+            self.log = Logging(self.cl, self.outfilename.rstrip('.fits'))
 
         if self.CLOBBER is False and os.path.exists(self.outdir + self.outfilename):
             self.log.doMessage('WARN', ' Will not overwrite existing pipeline output.\nConsider using \'--clobber\' option to overwrite.')

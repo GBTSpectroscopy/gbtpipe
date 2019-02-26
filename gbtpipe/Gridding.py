@@ -567,6 +567,7 @@ def griddata(filelist,
             latCoord = s[1].data['CRVAL3']
 
         if plotTimeSeries:
+            plt.switch_backend('agg')
             if not os.access(outdir +'/' + plotsubdir, os.W_OK):
                 os.mkdir(outdir + '/' + plotsubdir)
             vmin=np.nanpercentile(s[1].data['DATA'],15)
@@ -590,8 +591,9 @@ def griddata(filelist,
             plt.close()
             plt.clf()
 
-        for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
-            # Generate Baseline regions
+        # for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
+        for idx, spectrum in enumerate((s[1].data)):
+        # Generate Baseline regions
             baselineIndex = np.concatenate([nuindex[ss]
                                             for ss in baselineRegion])
 

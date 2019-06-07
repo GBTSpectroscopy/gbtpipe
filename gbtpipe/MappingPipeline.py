@@ -250,7 +250,10 @@ class MappingPipeline:
             rows = signalRows['ROW']
             columns = tuple(self.infile[ext].get_colnames())
             firstIntegration = Integration(self.infile[ext][columns][rows[0]])
-            targetname = str(firstIntegration['OBJECT']).replace(" ", "")
+            if isinstance(firstIntegration['OBJECT'],str):
+                targetname = firstIntegration['OBJECT'].replace(" ","")
+            else:
+                targetname = str(firstIntegration['OBJECT'],encoding='UTF-8').replace(" ", "")
 
         except KeyError:
             print('WARNING: Can not find data for scan {scan} window {win} feed {feed} polarization {pol}'.format(scan=self.cl.mapscans[0], win=window, feed=feed, pol=pol))

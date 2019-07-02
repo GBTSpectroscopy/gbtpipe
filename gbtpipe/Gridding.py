@@ -375,6 +375,9 @@ def griddata(filelist,
         radiometer formula.  Note that these estimators are outlier
         robust.
 
+    rippleThresh: float
+        Threshold for ripple flagging relative to RMS.  Default = 2
+
     flagSpike : bool
         Setting to True sets spikes to zero to avoid corrupting data
         before frequency shifting.

@@ -287,7 +287,7 @@ def griddata(filelist,
              pixPerBeam=3.5,
              templateHeader=None,
              gridFunction=jincGrid,
-             startChannel=1024, endChannel=3072,
+             startChannel=None, endChannel=None,
              doBaseline=True,
              baselineRegion=None,
              blorder=1,
@@ -297,8 +297,8 @@ def griddata(filelist,
              OnlineDoppler=True,
              flagRMS=False,
              flagRipple=False,
+             rippleThresh=2,
              flagSpike=False,
-             blankSpike=False,
              plotTimeSeries=False,
              rmsThresh=1.25,
              spikeThresh=10,
@@ -376,10 +376,6 @@ def griddata(filelist,
         robust.
 
     flagSpike : bool
-        Setting to True (default = False) flags regions in spectra 
-        that show jumps of > 5 times the typical pixel to pixel fluctuation.
-
-    blankSpike : bool
         Setting to True sets spikes to zero to avoid corrupting data
         before frequency shifting.
 
@@ -452,6 +448,12 @@ def griddata(filelist,
     
     if beamSize is None:
         beamSize = 1.18 * (c / nu0 / 100.0) * 180 / np.pi  # in degrees
+
+    if startChannel is None:
+        startChannel = 0
+    if endChannel is None:
+        endChannel = len(s[0]['DATA'])
+    
     naxis3 = len(s[0]['DATA'][startChannel:endChannel])
 
     # Default behavior is to park the object velocity at
@@ -609,14 +611,16 @@ def griddata(filelist,
             if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
                 continue
             # baseline fit
-            if blankSpike:
+            if flagSpike:
                 jumps = (specData - np.roll(specData, -1))
                 noise = mad1d(jumps) * 2**(-0.5)
                 spikemask = (np.abs(jumps) < spikeThresh * noise)
                 spikemask = spikemask * np.roll(spikemask, 1)
                 specData[~spikemask] = 0.0
-                
-            if doBaseline & np.all(np.isfinite(specData)):
+            else:
+                spikemask = np.ones_like(specData, dtype=np.bool)
+
+            if doBaseline & np.all(np.isfinite(specData[baselineIndex])):
                 specData = baselineSpectrum(specData, order=blorder,
                                             baselineIndex=baselineIndex)
 
@@ -632,7 +636,10 @@ def griddata(filelist,
             specData = channelShift(specData, -DeltaChan)
  
             outslice = (specData)[startChannel:endChannel]
-            spectrum_wt = np.isfinite(outslice).astype(np.float) * feedwt
+            spectrum_wt = ((np.isfinite(outslice)
+                            * spikemask[startChannel:
+                                        endChannel]).astype(np.float)
+                           * feedwt)
             outslice = np.nan_to_num(outslice)
             xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[idx],
                                                         latCoord[idx],
@@ -653,7 +660,7 @@ def griddata(filelist,
                                                      outslice[2:]))
                 ripple = prefac * sqrt2 * np.median(np.abs(outslice))
 
-                if ripple > 2 * scan_rms:
+                if ripple > rippleThresh * scan_rms:
                     tsys = 0 # Blank spectrum
             if tsys == 0:
                 flagct +=1

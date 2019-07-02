@@ -4,8 +4,12 @@ from scipy.optimize import least_squares as lsq
 from spectral_cube import SpectralCube
 import astropy.units as u
 import astropy.utils.console as console
-import pyspeckit.spectrum.models.ammonia_constants as acons
-
+try:
+    import pyspeckit.spectrum.models.ammonia_constants as acons
+except ModuleNotFoundError:
+    import warnings
+    warnings.warn('Module pyspeckit not found.' +
+                  'Ammonia baseline routines will fail.')
 
 def ammoniaLoss(fullcoefs, y, x, v, noise, line='oneone', chthrow=None):
     # Define coeffs as
@@ -177,7 +181,7 @@ def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
     opts = lsq(legendreLoss, np.zeros(blorder + 1), args=(y[baselineIndex],
                                                           x[baselineIndex],
                                                           noiserms),
-               loss='arctan')
+               loss='soft_l1')
 
     return y - legendre.legval(x, opts.x)
 

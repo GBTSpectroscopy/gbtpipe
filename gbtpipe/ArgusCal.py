@@ -247,7 +247,7 @@ def RowEnds(integrations, off_frac=0.25):
 
 def calscans(inputdir, start=82, stop=105, refscans=[80],
              badscans=[],
-             outdir=None, log=None, loglevel='wasrning',
+             outdir=None, log=None, loglevel='warning',
              OffSelector=RowEnds, OffType='linefit',
              verbose=True, suffix='', **kwargs):
     """

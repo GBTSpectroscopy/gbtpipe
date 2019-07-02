@@ -122,27 +122,20 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
     vec1 = integ1.data['DATA']
     vec2 = integ2.data['DATA']
 
-    if ((('Vane' in str(integ1.data['CALPOSITION'][0],
-                        encoding='UTF-8')) and
-         ('Observing' in str(integ2.data['CALPOSITION'][0],
-                             encoding='UTF-8')) or 
-         (('VANE' in str(integ1.data['OBJECT'][0],
-                         encoding='UTF-8')) and 
-          ('SKY' in str(integ2.data['OBJECT'][0],
-                        encoding='UTF-8'))))):
+    if ((('Vane' in integ1.data['CALPOSITION'][0]) and
+         ('Observing' in integ2.data['CALPOSITION'][0])) or 
+         (('VANE' in integ1.data['OBJECT'][0]) and 
+          ('SKY' in integ2.data['OBJECT'][0]))):
         # Directly do an on-off on the full data set
         onoff = np.median((vec1-vec2)/vec2)
         # Mean over time to get a vector of vaneCounts at each freq.
         vaneCounts = np.mean(vec1, axis=0)
 
     # Now test case where Vane data were second position
-    elif ((('Vane' in str(integ2.data['CALPOSITION'][0],
-                          encoding='UTF-8')) and
-           ('Observing' in str(integ1.data['CALPOSITION'][0])) or 
-          (('VANE' in str(integ2.data['OBJECT'][0],
-                          encoding='UTF-8')) and 
-           ('SKY' in str(integ1.data['OBJECT'][0],
-                         encoding='UTF-8'))))):
+    elif ((('Vane' in integ2.data['CALPOSITION'][0]) and
+           ('Observing' in integ1.data['CALPOSITION'][0])) or 
+          (('VANE' in integ2.data['OBJECT'][0]) and 
+           ('SKY' in integ1.data['OBJECT'][0]))):
         onoff = np.median((vec2-vec1)/vec1)
         vaneCounts = np.mean(vec2, axis=0)
     else:

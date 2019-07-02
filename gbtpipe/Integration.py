@@ -38,7 +38,7 @@ class Integration:
             return self.pu.masked_array(self.data[key][0])
         else:
             # strip leading and trailing whitespace
-            return_val = self.data[key][0]
+            return_val = self.data[key]
             if isinstance(return_val, str) or type(return_val) == np.string_:
                 return return_val.strip()
             else:

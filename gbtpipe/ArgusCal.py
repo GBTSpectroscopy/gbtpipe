@@ -246,6 +246,7 @@ def RowEnds(integrations, off_frac=0.25):
     return(OffMask)
 
 def calscans(inputdir, start=82, stop=105, refscans=[80],
+             badscans=[],
              outdir=None, log=None, loglevel='warning',
              OffSelector=RowEnds, OffType='linefit',
              verbose=True, suffix='', **kwargs):
@@ -314,6 +315,8 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
     # Assume spacing in uniform between start and stop
     cl_params.mapscans = list(np.linspace(start,stop,
                                           stop-start+1).astype('int'))
+    for bad in badscans:
+        cl_params.mapscans.remove(bad)
     cl_params.refscans = refscans
     
     

@@ -416,9 +416,6 @@ def griddata(filelist,
     if outdir is None:
         outdir = os.getcwd()
 
-    if baselineRegion is None:
-        baselineRegion = [slice(1024, 1536, 1), slice(2560, 3072, 1)]
-
     if len(filelist) == 0:
         warnings.warn('There are no FITS files to process ')
         return
@@ -456,6 +453,10 @@ def griddata(filelist,
         startChannel = 0
     if endChannel is None:
         endChannel = len(s[0]['DATA'])
+
+    if baselineRegion is None:
+        baselineRegion = [slice(startChannel, endChannel, 1)]
+
     
     naxis3 = len(s[0]['DATA'][startChannel:endChannel])
 

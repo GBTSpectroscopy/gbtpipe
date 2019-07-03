@@ -342,7 +342,9 @@ def griddata(filelist,
         Setting to True (default) performs per-scan baseline corrections.
 
     baselineRegion : `numpy.slice` or list of `numpy.slice`
-        Regions in the original pixel data used for fitting the baseline.
+        Regions in the original pixel data used for fitting the
+        baseline.  Defaults to entire spectrum, which assumes negligible
+        signal in individual scan
 
     blorder : int
         Order of baseline.  Defaults to 1 (linear)

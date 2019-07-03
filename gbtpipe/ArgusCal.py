@@ -172,7 +172,7 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
     return tcal, vaneCounts, tsysStar
 
 def ZoneOfAvoidance(integrations, center=None,
-                    radius=1 * u.arcmin, off_frac=0.1):
+                    radius=1 * u.arcmin, off_frac=0.1, **kwargs):
     """
     This function defines the OFFs based on an angular distance from a
     center point (i.e., a circular zone of avoidance)
@@ -201,7 +201,7 @@ def ZoneOfAvoidance(integrations, center=None,
 def FrequencySwitch(integrations):
     raise(NotImplementedError)
 
-def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25):
+def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25, **kwargs):
     """
     This function defines the OFFs based on where they land in a
     spatial mask. For performance reasons, it's good import this
@@ -224,7 +224,7 @@ def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25):
         return(OffMask)
     return(OffMask)
 
-def RowEnds(integrations, off_frac=0.25):
+def RowEnds(integrations, off_frac=0.25, **kwargs):
     """This function defines the OFFs as the ends of the rows
     
     Keywords

@@ -106,11 +106,25 @@ def mad1d(x):
     return np.median(np.abs(x - med0)) * 1.4826
 
 
-def baselineSpectrum(spectrum, order=1, baselineIndex=()):
-    x = np.linspace(-1, 1, len(spectrum))
-    coeffs = legendre.legfit(x[baselineIndex], spectrum[baselineIndex], order)
-    spectrum -= legendre.legval(x, coeffs)
-    return(spectrum)
+def baselineSpectrum(spectrum, order=1, baselineIndex=(),
+                     robust=False, noiserms=None):
+    if robust:
+        x = np.linspace(-1, 1, len(spectrum))
+        if noiserms is None:
+            noiserms = mad1d((spectrum - np.roll(spectrum, -2))[baselineIndex])
+        opts = lsq(legendreLoss, np.zeros(order + 1),
+                   args=(spectrum[baselineIndex],
+                         x[baselineIndex],
+                         noiserms),
+                   loss='soft_l1')
+        return(spectrum - legendre.legval(x, opts.x))
+    else:
+        x = np.linspace(-1, 1, len(spectrum))
+        coeffs = legendre.legfit(x[baselineIndex],
+                                 spectrum[baselineIndex],
+                                 order)
+        spectrum -= legendre.legval(x, coeffs)
+        return(spectrum)
 
 
 def freqShiftValue(freqIn, vshift, convention='RADIO'):
@@ -302,6 +316,7 @@ def griddata(filelist,
              plotTimeSeries=False,
              rmsThresh=1.25,
              spikeThresh=10,
+             robustBaseline=False,
              projection='TAN',
              plotsubdir='',
              outdir=None, 
@@ -384,12 +399,17 @@ def griddata(filelist,
         Setting to True sets spikes to zero to avoid corrupting data
         before frequency shifting.
 
+    robustBaseline : bool 
+        Fit the baseline using a robust fit metric (soft_l1) to reduce
+        the influence of outliers.  More computationally expensive.
+
     plotTimeSeries : bool
         Create scan vs frequency plot to inspect raw scan data.  This
         saves a PNG file to the output directory.
 
     plotsubdir : str
-        Subdirectory for timeseries plots.  Defaults to same directory as imaging.
+        Subdirectory for timeseries plots.  Defaults to same directory
+        as imaging.
 
     outdir : str
         Output directory name.  Defaults to current working directory.
@@ -628,7 +648,8 @@ def griddata(filelist,
 
             if doBaseline & np.all(np.isfinite(specData[baselineIndex])):
                 specData = baselineSpectrum(specData, order=blorder,
-                                            baselineIndex=baselineIndex)
+                                            baselineIndex=baselineIndex,
+                                            robust=robustBaseline)
 
             # This part takes the TOPOCENTRIC frequency that is at
             # CRPIX1 (i.e., CRVAL1) and calculates the what frequency

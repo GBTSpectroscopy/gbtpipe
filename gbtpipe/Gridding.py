@@ -573,6 +573,9 @@ def griddata(filelist,
 
         if plotTimeSeries:
             plt.switch_backend('agg')
+            # fix for subdirectories. 
+            if not os.access(outdir, os.W_OK):
+                os.mkdir(outdir)
             if not os.access(outdir +'/' + plotsubdir, os.W_OK):
                 os.mkdir(outdir + '/' + plotsubdir)
             vmin=np.nanpercentile(s[1].data['DATA'],15)

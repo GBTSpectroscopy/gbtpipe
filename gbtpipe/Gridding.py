@@ -18,6 +18,7 @@ from spectral_cube import SpectralCube
 from radio_beam import Beam
 from astropy.coordinates import SkyCoord
 import matplotlib.pyplot as plt
+from .Preprocess import preprocess
 
 from . import __version__
 
@@ -106,46 +107,6 @@ def mad1d(x):
     return np.median(np.abs(x - med0)) * 1.4826
 
 
-def baselineSpectrum(spectrum, order=1, baselineIndex=(),
-                     robust=False, noiserms=None):
-    if robust:
-        x = np.linspace(-1, 1, len(spectrum))
-        if noiserms is None:
-            noiserms = mad1d((spectrum - np.roll(spectrum, -2))[baselineIndex])
-        opts = lsq(legendreLoss, np.zeros(order + 1),
-                   args=(spectrum[baselineIndex],
-                         x[baselineIndex],
-                         noiserms),
-                   loss='soft_l1')
-        return(spectrum - legendre.legval(x, opts.x))
-    else:
-        x = np.linspace(-1, 1, len(spectrum))
-        coeffs = legendre.legfit(x[baselineIndex],
-                                 spectrum[baselineIndex],
-                                 order)
-        spectrum -= legendre.legval(x, coeffs)
-        return(spectrum)
-
-
-def freqShiftValue(freqIn, vshift, convention='RADIO'):
-    cms = 299792458.
-    if convention.upper() in 'OPTICAL':
-        return freqIn / (1.0 + vshift / cms)
-    if convention.upper() in 'TRUE':
-        return freqIn * ((cms + vshift) / (cms - vshift))**0.5
-    if convention.upper() in 'RADIO':
-        return freqIn * (1.0 - vshift / cms)
-
-
-def channelShift(x, ChanShift):
-    # Shift a spectrum by a set number of channels.
-    ftx = np.fft.fft(x)
-    m = np.fft.fftfreq(len(x))
-    phase = np.exp(2 * np.pi * m * 1j * ChanShift)
-    x2 = np.real(np.fft.ifft(ftx * phase))
-    return(x2)
-
-
 def jincGrid(xpix, ypix, xdata, ydata, pixPerBeam):
     a = 1.55 / (3.0 / pixPerBeam)
     b = 2.52 / (3.0 / pixPerBeam)
@@ -180,46 +141,7 @@ def gaussGrid(xpix, ypix, xdata, ydata, pixPerBeam):
     wt = np.exp(-d**2 * b2)
     return(wt, ind)
 
-def VframeInterpolator(scan):
-    # Find cases where the scan number is 
-    startidx = scan['PROCSEQN']!=np.roll(scan['PROCSEQN'],1)
-    scanstarts = scan[startidx]
-    indices = np.arange(len(scan))
-    startindices = indices[startidx]
-    scannum = scanstarts['PROCSEQN']
-    vfs = scanstarts['VFRAME']
 
-    odds = (scannum % 2) == 1
-    evens = (scannum % 2) == 0
-    
-    coeff_odds,_,_,_ = np.linalg.lstsq(\
-        np.c_[startindices[odds]*1.0,
-              np.ones_like(startindices[odds])],
-        vfs[odds])
-
-    coeff_evens,_,_,_ = np.linalg.lstsq(\
-        np.c_[startindices[evens]*1.0,
-              np.ones_like(startindices[evens])],
-        vfs[evens])
-
-    vfit = np.zeros(len(scan))+np.nan
-
-    for thisone, singlescan in enumerate(scan):
-        startv = vfs[scannum == singlescan['PROCSEQN']]
-        startt = startindices[scannum == singlescan['PROCSEQN']]
-        if singlescan['PROCSEQN'] % 2 == 0:
-            endv = coeff_odds[1] + coeff_odds[0] * (startt+94)
-        if singlescan['PROCSEQN'] % 2 == 1:
-            endv = coeff_evens[1] + coeff_evens[0] * (startt+94)
-
-        endt = startt+94
-        try:
-            vfit[thisone] = (thisone - startt) * \
-                (endv - startv)/94 + startv
-        except:
-            pass
-    return(vfit)
-    
 def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0,
                projection='TAN', discardSky=True):
     RAlist = []
@@ -545,6 +467,9 @@ def griddata(filelist,
 
 
     for thisfile in filelist:
+        print("Now processing {0}".format(thisfile))
+        print("This is file {0} of {1}".format(ctr, len(filelist)))
+
         ctr += 1
         s = fits.open(thisfile)
         if flagSpatialOutlier:
@@ -553,17 +478,15 @@ def griddata(filelist,
                 s[1].data = s[1].data[f]
                 f = np.where(is_outlier(s[1].data['CRVAL3'], thresh=1.5)!=True)
                 s[1].data = s[1].data[f]
-        print("Now processing {0}".format(thisfile))
-        print("This is file {0} of {1}".format(ctr, len(filelist)))
         if len(s[1].data) == 0:
             warnings.warn("Corrupted file: {0}".format(thisfile))
             continue
         nuindex = np.arange(len(s[1].data['DATA'][0]))
 
-        if not OnlineDoppler:
-            vframe = VframeInterpolator(s[1].data)
-        else:
-            vframe = s[1].data['VFRAME']
+        # if not OnlineDoppler:
+        #     vframe = VframeInterpolator(s[1].data)
+        # else:
+        #     vframe = s[1].data['VFRAME']
         flagct = 0
         if eulerFlag:
             if 'GLON' in s[1].data['CTYPE2'][0]:
@@ -594,141 +517,23 @@ def griddata(filelist,
             longCoord = s[1].data['CRVAL2']
             latCoord = s[1].data['CRVAL3']
 
-        if plotTimeSeries:
-            plt.switch_backend('agg')
-            # fix for subdirectories. 
-            if not os.access(outdir, os.W_OK):
-                os.mkdir(outdir)
-            if not os.access(outdir +'/' + plotsubdir, os.W_OK):
-                os.mkdir(outdir + '/' + plotsubdir)
-            vmin=np.nanpercentile(s[1].data['DATA'],15)
-            vmed=np.nanpercentile(s[1].data['DATA'],50)
-            vmax=np.nanpercentile(s[1].data['DATA'],85)
-            fig = plt.figure(figsize=(8.0,6.5))
-            ax = fig.add_subplot(111)
-            im = ax.imshow(s[1].data['DATA'],
-                           interpolation='nearest',
-                           cmap='PuOr', vmin=(4*vmin-3*vmed),
-                           vmax=4*vmax-3*vmed)
-            outscans = np.zeros_like(s[1].data['DATA'] + np.nan) 
-            ax.set_xlabel('Channel')
-            ax.set_title((thisfile.split('/'))[-1])
-            ax.set_ylabel('Scan')
-            cb = fig.colorbar(im)
-            cb.set_label('Intensity (K)')
-            thisroot = (thisfile.split('/'))[-1]
-            plt.savefig(outdir + '/' + plotsubdir +
-                        '/' + thisroot.replace('fits', 'png'))
-            plt.close()
-            plt.clf()
-
         # for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
-        for idx, spectrum in enumerate((s[1].data)):
-        # Generate Baseline regions
-            baselineIndex = np.concatenate([nuindex[ss]
-                                            for ss in baselineRegion])
-
-            specData = spectrum['DATA']
-            if gainDict:
-                try:
-                    feedwt = 1.0/gainDict[(str(spectrum['FDNUM']).strip(),
-                                           str(spectrum['PLNUM']).strip())]
-                except KeyError:
-                    continue
-            else:
-                feedwt = 1.0
-            if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
-                continue
-            # baseline fit
-            if flagSpike:
-                jumps = (specData - np.roll(specData, -1))
-                noise = mad1d(jumps) * 2**(-0.5)
-                spikemask = (np.abs(jumps) < spikeThresh * noise)
-                spikemask = spikemask * np.roll(spikemask, 1)
-                specData[~spikemask] = 0.0
-            else:
-                spikemask = np.ones_like(specData, dtype=np.bool)
-
-            if doBaseline & np.all(np.isfinite(specData[baselineIndex])):
-                specData = baselineSpectrum(specData, order=blorder,
-                                            baselineIndex=baselineIndex,
-                                            robust=robustBaseline)
-
-            # This part takes the TOPOCENTRIC frequency that is at
-            # CRPIX1 (i.e., CRVAL1) and calculates the what frequency
-            # that would have in the LSRK frame with freqShiftValue.
-            # This then compares to the desired frequency CRVAL3.
-                
-            DeltaNu = freqShiftValue(spectrum['CRVAL1'],
-                                     -vframe[idx]) - crval3
-
-            DeltaChan = DeltaNu / cdelt3
-            specData = channelShift(specData, -DeltaChan)
- 
-            outslice = (specData)[startChannel:endChannel]
-            spectrum_wt = ((np.isfinite(outslice)
-                            * spikemask[startChannel:
-                                        endChannel]).astype(np.float)
-                           * feedwt)
-            outslice = np.nan_to_num(outslice)
-            xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[idx],
-                                                        latCoord[idx],
-                                                        spectrum['CRVAL1'], 0)
-            tsys = spectrum['TSYS']
-
-            if flagRMS:
-                radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
-                                                spectrum['EXPOSURE'])
-                scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
-                                                        outslice[2:]))
-
-                if scan_rms > rmsThresh * radiometer_rms:
-                    tsys = 0 # Blank spectrum
-
-            if flagRipple:
-                scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
-                                                     outslice[2:]))
-                ripple = prefac * sqrt2 * np.median(np.abs(outslice))
-
-                if ripple > rippleThresh * scan_rms:
-                    tsys = 0 # Blank spectrum
-            if tsys == 0:
-                flagct +=1
-            if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
+        spectra, outscan, specwts, tsys = preprocess(thisfile)
+        for i in range(len(s)):    
+            xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[i],
+                                                        latCoord[i],
+                                                        spectra[i]['CRVAL1'], 0)
+            if (tsys[i] > 10) and (xpoints > 0) and (xpoints < naxis1) \
                     and (ypoints > 0) and (ypoints < naxis2):
-                if plotTimeSeries:
-                    outscans[idx, startChannel:endChannel] = outslice
                 pixelWeight, Index = gridFunction(xmat, ymat,
-                                                  xpoints, ypoints,
-                                                  pixPerBeam)
-                vector = np.outer(outslice * spectrum_wt,
-                                  pixelWeight / tsys**2)
-                wts = pixelWeight / tsys**2
+                                                xpoints, ypoints,
+                                                pixPerBeam)
+                vector = np.outer(outscan[i, :] * specwts[i, :],
+                                    pixelWeight / tsys[i]**2)
+                wts = pixelWeight / tsys[i]**2
                 outCube[:, ymat[Index], xmat[Index]] += vector
                 outWts[ymat[Index], xmat[Index]] += wts
-        print ("Percentage of flagged scans: {0:4.2f}".format(
-                100*flagct/float(idx)))
-        if plotTimeSeries:
-            vmin=np.nanpercentile(outscans,15)
-            vmed=np.nanpercentile(outscans,50)
-            vmax=np.nanpercentile(outscans,85)
-            fig = plt.figure(figsize=(8.0,6.5))
-            ax = fig.add_subplot(111)
-            im = ax.imshow(outscans,
-                           interpolation='nearest',
-                           cmap='PuOr', vmin=(4*vmin-3*vmed),
-                           vmax=4*vmax-3*vmed)
-            outscans = np.zeros_like(s[1].data['DATA'] + np.nan) 
-            ax.set_xlabel('Channel')
-            ax.set_title((thisfile.split('/'))[-1])
-            ax.set_ylabel('Scan')
-            cb = fig.colorbar(im)
-            cb.set_label('Intensity (K)')
-            thisroot = (thisfile.split('/'))[-1]
-            plt.savefig(outdir + '/' + plotsubdir + '/' +
-                        thisroot.replace('fits', 'flagged.png'))
-            plt.close()
-            plt.clf()
+
                     
 
         # Temporarily do a file write for every batch of scans.

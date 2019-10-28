@@ -24,6 +24,7 @@ if not _ASTROPY_SETUP_:
     from .Gridding import griddata
     from .Baseline import *
     from .gbt_pipeline import *
+
     try:
         from .CyGridding import cygriddata
     except ImportError:

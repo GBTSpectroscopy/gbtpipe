@@ -145,8 +145,8 @@ def preprocess(filename,
                baselineRegion=None,
                blorder=1,
                OnlineDoppler=True,
-               flagRMS=False,
-               flagRipple=False,
+               flagRMS=True,
+               flagRipple=True,
                rippleThresh=2,
                plotTimeSeries=False,
                rmsThresh=1.25,
@@ -201,7 +201,6 @@ def preprocess(filename,
     outwts = []
     tsyslist = []
     for idx, (spectrum, vframe) in enumerate(zip(s, vframe_list)):
-        print(idx)
         if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
             continue
 
@@ -257,7 +256,7 @@ def preprocess(filename,
 
         tsys = spectrum['TSYS']
         outslice = (specData)[startChannel:endChannel]
-
+        flagct = 0
         if flagRMS:
             radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
                                             spectrum['EXPOSURE'])
@@ -285,24 +284,9 @@ def preprocess(filename,
         outscans += [outslice]
         outwts += [spectrum_wt]
         tsyslist += [tsys]
-    
-    #     xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[idx],
-    #                                                 latCoord[idx],
-    #                                                 spectrum['CRVAL1'], 0)
-    #     if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
-    #             and (ypoints > 0) and (ypoints < naxis2):
-    #         if plotTimeSeries:
-    #             outscans[idx, startChannel:endChannel] = outslice
-    #         pixelWeight, Index = gridFunction(xmat, ymat,
-    #                                             xpoints, ypoints,
-    #                                             pixPerBeam)
-    #         vector = np.outer(outslice * spectrum_wt,
-    #                             pixelWeight / tsys**2)
-    #         wts = pixelWeight / tsys**2
-    #         outCube[:, ymat[Index], xmat[Index]] += vector
-    #         outWts[ymat[Index], xmat[Index]] += wts
-    # print ("Percentage of flagged scans: {0:4.2f}".format(
-    #         100*flagct/float(idx)))
+
+    print ("Percentage of flagged scans: {0:4.2f}".format(
+           100*flagct/float(idx)))
 
     # AFTER PLOT
     if plotTimeSeries:

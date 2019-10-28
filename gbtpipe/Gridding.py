@@ -224,27 +224,26 @@ def griddata(filelist,
              templateHeader=None,
              gridFunction=jincGrid,
              startChannel=None, endChannel=None,
-             doBaseline=True,
-             baselineRegion=None,
-             blorder=1,
              rebase=None,
              rebaseorder=None,
              beamSize=None,
-             OnlineDoppler=True,
-             flagRMS=False,
-             flagRipple=False,
-             rippleThresh=2,
-             flagSpike=False,
-             plotTimeSeries=False,
-             rmsThresh=1.25,
-             spikeThresh=10,
-             robustBaseline=False,
+            #  blorder=1,
+            #  doBaseline=True,
+            #  baselineRegion=None,
+            #  OnlineDoppler=True,
+            #  flagRMS=False,
+            #  flagRipple=False,
+            #  rippleThresh=2,
+            #  flagSpike=False,
+            #  plotTimeSeries=False,
+            #  rmsThresh=1.25,
+            #  spikeThresh=10,
+            #  flagSpatialOutlier=False,
+            #  plotsubdir='',
              projection='TAN',
-             plotsubdir='',
              outdir=None, 
              outname=None,
              dtype=np.float64,
-             flagSpatialOutlier=False,
              gainDict=None,
              **kwargs):
 
@@ -465,7 +464,6 @@ def griddata(filelist,
 
     ctr = 0
 
-
     for thisfile in filelist:
         print("Now processing {0}".format(thisfile))
         print("This is file {0} of {1}".format(ctr, len(filelist)))
@@ -483,10 +481,6 @@ def griddata(filelist,
             continue
         nuindex = np.arange(len(s[1].data['DATA'][0]))
 
-        # if not OnlineDoppler:
-        #     vframe = VframeInterpolator(s[1].data)
-        # else:
-        #     vframe = s[1].data['VFRAME']
         flagct = 0
         if eulerFlag:
             if 'GLON' in s[1].data['CTYPE2'][0]:
@@ -517,8 +511,7 @@ def griddata(filelist,
             longCoord = s[1].data['CRVAL2']
             latCoord = s[1].data['CRVAL3']
 
-        # for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
-        spectra, outscan, specwts, tsys = preprocess(thisfile)
+        spectra, outscan, specwts, tsys = preprocess(thisfile, **kwargs)
         for i in range(len(s)):    
             xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[i],
                                                         latCoord[i],
@@ -533,9 +526,7 @@ def griddata(filelist,
                 wts = pixelWeight / tsys[i]**2
                 outCube[:, ymat[Index], xmat[Index]] += vector
                 outWts[ymat[Index], xmat[Index]] += wts
-
-                    
-
+           
         # Temporarily do a file write for every batch of scans.
         outWtsTemp = np.copy(outWts)
         outWtsTemp.shape = (1,) + outWtsTemp.shape
@@ -555,11 +546,6 @@ def griddata(filelist,
     hdr = fits.Header(w.to_header())
     # Add non standard fits keyword
     hdr = addHeader_nonStd(hdr, beamSize, s[1].data[0])
-    # Adds history message
-    # try:
-    #    hdr.add_history(history_message)
-    # except UnboundLocalError:
-    #    pass
     hdr.add_history('Using GBTPIPE gridder version {0}'.format(__version__))
     hdu = fits.PrimaryHDU(outCube, header=hdr)
     hdu.writeto(outdir + '/' + outname + '.fits', overwrite=True)
@@ -594,3 +580,98 @@ def griddata(filelist,
                                 blorder=rebaseorder,
                                 windowFunction=Baseline.tightWindow, 
                                 **kwargs)
+
+
+        # for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):
+        # for idx, spectrum in enumerate((s[1].data)):
+        # # Generate Baseline regions
+        #     baselineIndex = np.concatenate([nuindex[ss]
+        #                                     for ss in baselineRegion])
+
+        #     specData = spectrum['DATA']
+        #     if gainDict:
+        #         try:
+        #             feedwt = 1.0/gainDict[(str(spectrum['FDNUM']).strip(),
+        #                                    str(spectrum['PLNUM']).strip())]
+        #         except KeyError:
+        #             continue
+        #     else:
+        #         feedwt = 1.0
+        #     if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
+        #         continue
+        #     # baseline fit
+        #     if flagSpike:
+        #         jumps = (specData - np.roll(specData, -1))
+        #         noise = mad1d(jumps) * 2**(-0.5)
+        #         spikemask = (np.abs(jumps) < spikeThresh * noise)
+        #         spikemask = spikemask * np.roll(spikemask, 1)
+        #         specData[~spikemask] = 0.0
+        #     else:
+        #         spikemask = np.ones_like(specData, dtype=np.bool)
+
+        #     if doBaseline & np.all(np.isfinite(specData[baselineIndex])):
+        #         specData = baselineSpectrum(specData, order=blorder,
+        #                                     baselineIndex=baselineIndex)
+
+        #     # This part takes the TOPOCENTRIC frequency that is at
+        #     # CRPIX1 (i.e., CRVAL1) and calculates the what frequency
+        #     # that would have in the LSRK frame with freqShiftValue.
+        #     # This then compares to the desired frequency CRVAL3.
+
+        #     DeltaNu = freqShiftValue(spectrum['CRVAL1'],
+        #                              -vframe[idx]) - crval3
+
+        #     DeltaChan = DeltaNu / cdelt3
+        #     specData = channelShift(specData, -DeltaChan)
+
+        #     outslice = (specData)[startChannel:endChannel]
+        #     spectrum_wt = ((np.isfinite(outslice)
+        #                     * spikemask[startChannel:
+        #                                 endChannel]).astype(np.float)
+        #                    * feedwt)
+        #     outslice = np.nan_to_num(outslice)
+        #     xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[idx],
+        #                                                 latCoord[idx],
+        #                                                 spectrum['CRVAL1'], 0)
+        #     tsys = spectrum['TSYS']
+
+        #     if flagRMS:
+        #         radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
+        #                                         spectrum['EXPOSURE'])
+        #         scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
+        #                                                 outslice[2:]))
+
+        #         if scan_rms > rmsThresh * radiometer_rms:
+        #             tsys = 0 # Blank spectrum
+
+        #     if flagRipple:
+        #         scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
+        #                                              outslice[2:]))
+        #         ripple = prefac * sqrt2 * np.median(np.abs(outslice))
+
+        #         if ripple > rippleThresh * scan_rms:
+        #             tsys = 0 # Blank spectrum
+        #     if tsys == 0:
+        #         flagct +=1
+    # print ("Percentage of flagged scans: {0:4.2f}".format(
+    #         100*flagct/float(idx)))
+
+
+    #         if (tsys > 10) and (xpoints > 0) and (xpoints < naxis1) \
+    #                 and (ypoints > 0) and (ypoints < naxis2):
+    #             if plotTimeSeries:
+    #                 outscans[idx, startChannel:endChannel] = outslice
+    #             pixelWeight, Index = gridFunction(xmat, ymat,
+    #                                               xpoints, ypoints,
+    #                                               pixPerBeam)
+    #             vector = np.outer(outslice * spectrum_wt,
+    #                               pixelWeight / tsys**2)
+    #             wts = pixelWeight / tsys**2
+    #             outCube[:, ymat[Index], xmat[Index]] += vector
+    #             outWts[ymat[Index], xmat[Index]] += wts
+    #     print ("Percentage of flagged scans: {0:4.2f}".format(
+    #             100*flagct/float(idx)))
+        # if not OnlineDoppler:
+        #     vframe = VframeInterpolator(s[1].data)
+        # else:
+        #     vframe = s[1].data['VFRAME']

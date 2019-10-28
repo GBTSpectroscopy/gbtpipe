@@ -11,6 +11,23 @@ except ModuleNotFoundError:
     warnings.warn('Module pyspeckit not found.' +
                   'Ammonia baseline routines will fail.')
 
+
+#########################
+#   UTILITY FUNCTIONS
+#########################
+
+def mad1d(x):
+    med0 = np.median(x)
+    return np.median(np.abs(x - med0)) * 1.4826
+
+#########################
+#   LOSS FUNCTIONS
+#########################
+
+def legendreLoss(coeffs, y, x, noise):
+    return (y - legendre.legval(x, coeffs)) / noise
+
+
 def ammoniaLoss(fullcoefs, y, x, v, noise, line='oneone', chthrow=None):
     # Define coeffs as
     # [Amp, v0, sigv, legendre]
@@ -29,40 +46,9 @@ def ammoniaLoss(fullcoefs, y, x, v, noise, line='oneone', chthrow=None):
     return (y - model) / noise
 
 
-def robustBaseline(y, v, baselineIndex, blorder=1, noiserms=None):
-    x = np.linspace(-1, 1, len(y))
-    if noiserms is None:
-        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
-    opts = lsq(legendreLoss, np.zeros(blorder + 1), args=(y[baselineIndex],
-                                                          x[baselineIndex],
-                                                          noiserms),
-               loss='arctan')
-
-    return y - legendre.legval(x, opts.x)
-
-
-def baselineWithAmmonia(y, v, baselineIndex,
-                        freqthrow=4.11 * u.MHz,
-                        v0=8.5, sigmav=1.0 * u.km/u.s,
-                        line='oneone', blorder=5, noiserms=None):
-    x = np.linspace(-1, 1, len(y))
-    chthrow = (freqthrow.to(u.Hz).value
-               / acons.freq_dict[line]
-               * 299792.458 / np.abs(v[0]-v[1]))
-    chthrow = (np.round(chthrow)).astype(np.int)
-    if noiserms is None:
-        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
-
-    opts = lsq(ammoniaLoss, np.r_[[np.nanmax(y[baselineIndex]),
-                                   v[np.nanargmax(y[baselineIndex])], 1.0],
-                                  np.zeros(blorder+1)],
-               args=(y[baselineIndex],
-                     x[baselineIndex],
-                     v[baselineIndex],
-                     noiserms),
-               kwargs={'chthrow':chthrow}, loss='soft_l1')
-    return y - legendre.legval(x, opts.x[3:])
-
+#########################
+#   WINDOW FUNCTIONS
+#########################
 
 def ammoniaWindow(spectrum, spaxis, freqthrow=4.11 * u.MHz,
                   window=3, v0=8.5, line='oneone', outerwindow=None):
@@ -146,7 +132,7 @@ def tightWindow(spectrum, spaxis,
     mask = np.zeros_like(spectrum, dtype=np.bool)
     mask[(spaxis > (v0 - window)) * (spaxis < (v0 + window))] = True
     deltachan = freqthrow / ((spaxis[1] - spaxis[0]) /
-                             299792.458 * 0.5 * (spaxis[1] + 
+                             299792.458 * 0.5 * (spaxis[1] +
                                                  spaxis[0]) * u.GHz)
     deltachan = deltachan.to(u.dimensionless_unscaled).value
     deltachan = (np.floor(np.abs(deltachan))).astype(np.int)
@@ -164,26 +150,69 @@ def tightWindow(spectrum, spaxis,
         mask[(spaxis < (v0 - outerwindow))] = True
     return(~mask)
 
+def simpleWindow(spectrum, innerfraction=0.2, edgefraction=0.05):
+    nChan = len(spectrum['DATA'])
+    return([slice(int(edgefraction * nChan),
+                  int((0.5 - innerfraction / 2) * edgefraction * nChan), 1),
+            slice(int((0.5 + innerfraction / 2) * edgefraction * nChan),
+                  int((1.0 - edgefraction) * nChan), 1)])
 
-def mad1d(x):
-    med0 = np.median(x)
-    return np.median(np.abs(x - med0)) * 1.4826
+def maskWindow(mask, spectrum, velocity_convention='radio'):
+    mask = mask.with_spectral_unit(u.km / u.s,
+                                   velocity_convention=velocity_convention)
+    spectrum = spectrum.with_spectral_unit(u.km / u.s,
+                                          velocity_convention=velocity_convention)
+    
+    v, d, a = spectrum.world[:, :, :]
+    x, y, z = mask.wcs.wcs_world2pix(a, d, v.to(u.m / u.s), 0)
+    shape = mask.shape
+    x = np.round(np.clip(x, 0, shape[2]-1)).astype(np.int)
+    y = np.round(np.clip(y, 0, shape[1]-1)).astype(np.int)
+    z = np.round(np.clip(z, 0, shape[0]-1)).astype(np.int)
+
+    specmask = np.squeeze(~np.asarray(mask.filled_data[:][z, y, x], dtype=np.bool))
+    return(specmask)
+
+def baselineSpectrum(spectrum, order=1, baselineIndex=()):
+    x = np.linspace(-1, 1, len(spectrum))
+    coeffs = legendre.legfit(x[baselineIndex], spectrum[baselineIndex], order)
+    spectrum -= legendre.legval(x, coeffs)
+    return(spectrum)
 
 
-def legendreLoss(coeffs, y, x, noise):
-    return (y - legendre.legval(x, coeffs)) / noise
-
-
-def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
+def robustBaseline(y, v, baselineIndex, blorder=1, noiserms=None):
     x = np.linspace(-1, 1, len(y))
     if noiserms is None:
         noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
     opts = lsq(legendreLoss, np.zeros(blorder + 1), args=(y[baselineIndex],
                                                           x[baselineIndex],
                                                           noiserms),
-               loss='soft_l1')
+               loss='arctan')
 
     return y - legendre.legval(x, opts.x)
+
+
+def baselineWithAmmonia(y, v, baselineIndex,
+                        freqthrow=4.11 * u.MHz,
+                        v0=8.5, sigmav=1.0 * u.km/u.s,
+                        line='oneone', blorder=5, noiserms=None):
+    x = np.linspace(-1, 1, len(y))
+    chthrow = (freqthrow.to(u.Hz).value
+               / acons.freq_dict[line]
+               * 299792.458 / np.abs(v[0]-v[1]))
+    chthrow = (np.round(chthrow)).astype(np.int)
+    if noiserms is None:
+        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
+
+    opts = lsq(ammoniaLoss, np.r_[[np.nanmax(y[baselineIndex]),
+                                   v[np.nanargmax(y[baselineIndex])], 1.0],
+                                  np.zeros(blorder+1)],
+               args=(y[baselineIndex],
+                     x[baselineIndex],
+                     v[baselineIndex],
+                     noiserms),
+               kwargs={'chthrow':chthrow}, loss='soft_l1')
+    return y - legendre.legval(x, opts.x[3:])
 
 
 def rebaseline(filename, blorder=3, 

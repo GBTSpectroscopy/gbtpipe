@@ -67,13 +67,14 @@ def drawTimeSeriesPlot(data, filename='TimeSeriesPlot',
     vmax=np.nanpercentile(data,85)
     fig = plt.figure(figsize=(8.0,6.5))
     ax = fig.add_subplot(111)
-    im = ax.imshow(data,
+    if flags is not None:
+        flagmask = np.ones(data.shape[0]) * flags.astype(np.int)[np.newaxis]
+    else:
+        flagmask = 1.0
+    im = ax.imshow(data * flagmask,
                     interpolation='nearest',
                     cmap='PuOr', vmin=(4*vmin-3*vmed),
                     vmax=4*vmax-3*vmed)
-    if flags is not None:
-        for y in (np.where(flags))[0]:
-            ax.axhline(y, alpha=0.5, color='green')
     ax.set_xlabel('Channel')
     # ax.set_title((filename.split('/'))[-1])
     ax.set_ylabel('Scan')

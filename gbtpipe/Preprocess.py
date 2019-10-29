@@ -74,7 +74,7 @@ def drawTimeSeriesPlot(data, filename='TimeSeriesPlot',
     im = ax.imshow(data * flagmask,
                     interpolation='nearest',
                     cmap='PuOr', vmin=(4*vmin-3*vmed),
-                    vmax=4*vmax-3*vmed)
+                    vmax=4*vmax-3*vmed, aspect='auto')
     ax.set_xlabel('Channel')
     # ax.set_title((filename.split('/'))[-1])
     ax.set_ylabel('Scan')

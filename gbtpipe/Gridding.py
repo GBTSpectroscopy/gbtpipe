@@ -230,18 +230,6 @@ def griddata(filelist,
              rebase=None,
              rebaseorder=None,
              beamSize=None,
-            #  blorder=1,
-            #  doBaseline=True,
-            #  baselineRegion=None,
-            #  OnlineDoppler=True,
-            #  flagRMS=False,
-            #  flagRipple=False,
-            #  rippleThresh=2,
-            #  flagSpike=False,
-            #  plotTimeSeries=False,
-            #  rmsThresh=1.25,
-            #  spikeThresh=10,
-            #  plotsubdir='',
              flagSpatialOutlier=False,
              projection='TAN',
              outdir=None, 
@@ -276,64 +264,6 @@ def griddata(filelist,
 
     endChannel : int
         End channel for spectrum within the original spectral data
-
-    doBaseline : bool
-        Setting to True (default) performs per-scan baseline corrections.
-
-    baselineRegion : `numpy.slice` or list of `numpy.slice`
-        Regions in the original pixel data used for fitting the
-        baseline.  Defaults to entire spectrum, which assumes negligible
-        signal in individual scan
-
-    blorder : int
-        Order of baseline.  Defaults to 1 (linear)
-
-    rebase : bool
-        Setting to True (default is False) performs per-pixel
-        rebaselining of the resulting cube.
-
-    beamSize : float
-        Telescope beam size at this frequency measured in degrees.
-
-    OnlineDopper : bool
-        Setting to True (default) assumes that the Doppler corrections
-        in the data are corrected during a telescope scan.  Setting to
-        False assumes that the Doppler correction is updated at the
-        end of a scan and linearly interpolates between scan ends.
-        
-    flagRMS : bool
-        Setting to True (default = False) flags spectra with rms
-        values >rmsThresh x higher than prediction from the radiometer
-        formula.  This rms determination assumes that channels are not
-        strongly correlated
-
-    rmsThresh : float
-        Threshold for scan flagging based on rms.  Default = 1.5
-
-    flagRipple : bool
-        Setting to True (default = False) flags spectra with structure
-        in the line that is 2x higher than the rms prediction of the
-        radiometer formula.  Note that these estimators are outlier
-        robust.
-
-    rippleThresh: float
-        Threshold for ripple flagging relative to RMS.  Default = 2
-
-    flagSpike : bool
-        Setting to True sets spikes to zero to avoid corrupting data
-        before frequency shifting.
-
-    robustBaseline : bool 
-        Fit the baseline using a robust fit metric (soft_l1) to reduce
-        the influence of outliers.  More computationally expensive.
-
-    plotTimeSeries : bool
-        Create scan vs frequency plot to inspect raw scan data.  This
-        saves a PNG file to the output directory.
-
-    plotsubdir : str
-        Subdirectory for timeseries plots.  Defaults to same directory
-        as imaging.
 
     outdir : str
         Output directory name.  Defaults to current working directory.

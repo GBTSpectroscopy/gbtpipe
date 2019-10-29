@@ -164,13 +164,106 @@ def preprocess(filename,
                windowStrategy='simple',
                maskfile=None,
                edgefraction=0.05,
-               restFrequences=None,
                gainDict=None,
                outdir=None,
                plotsubdir='',
                robust=False,
                **kwargs):
 
+    """Scan pre-processing module for gbtpipe.  This baselines and flags
+    scans before passing into the cube gridder.
+    
+    Parameters
+    ----------
+    filename : list
+        SDFITS file containing the scans to be processed.
+
+    Keywords
+    --------
+
+    startChannel : int
+        Starting channel for spectrum within the original spectral data.
+
+    endChannel : int
+        End channel for spectrum within the original spectral data
+
+    doBaseline : bool
+        Setting to True (default) performs per-scan baseline corrections.
+
+    baselineRegion : `numpy.slice` or list of `numpy.slice`
+        Regions in the original pixel data used for fitting the
+        baseline.  Defaults to entire spectrum, which assumes negligible
+        signal in individual scan
+
+    blorder : int
+        Order of baseline.  Defaults to 1 (linear)
+
+    OnlineDopper : bool
+        Setting to True (default) assumes that the Doppler corrections
+        in the data are corrected during a telescope scan.  Setting to
+        False assumes that the Doppler correction is updated at the
+        end of a scan and linearly interpolates between scan ends.
+        
+    flagRMS : bool
+        Setting to True (default = False) flags spectra with rms
+        values >rmsThresh x higher than prediction from the radiometer
+        formula.  This rms determination assumes that channels are not
+        strongly correlated
+
+    rmsThresh : float
+        Threshold for scan flagging based on rms.  Default = 1.5
+
+    flagRipple : bool
+        Setting to True (default = False) flags spectra with structure
+        in the line that is 2x higher than the rms prediction of the
+        radiometer formula.  Note that these estimators are outlier
+        robust.
+
+    rippleThresh: float
+        Threshold for ripple flagging relative to RMS.  Default = 2
+
+    flagSpike : bool
+        Setting to True sets spikes to zero to avoid corrupting data
+        before frequency shifting.
+
+    robust : bool 
+        Fit the baseline using a robust fit metric (soft_l1) to reduce
+        the influence of outliers.  More computationally expensive.
+
+    plotTimeSeries : bool
+        Create scan vs frequency plot to inspect raw scan data.  This
+        saves a PNG file to the output directory.
+
+    plotsubdir : str
+        Subdirectory for timeseries plots.  Defaults to same directory
+        as imaging.
+
+    gainDict : dict 
+        Dictionary that has a tuple of feed and polarization numbers
+        as keys and returns the gain values for that feed.
+
+    windowStrategy : 'simple' or 'cubemask' 
+        Chooses how to select the window of channels to exclude from
+        baseline fitting.  'simple' uses Baseline.simpleWindow and
+        associated keywords.  'cubemask' interpolates onto the the
+        file specified in the maskfile keyword.
+
+    maskfile : str
+        path and filename to FITS file containing a mask. The mask
+        file should have a value of 1 or True where there is emission
+        to be excluded from the baseline fitting.
+
+    edgefraction : float
+        Fraction of the band edges to be removed from the spectrum.
+
+
+    Returns
+    -------
+    None
+
+    """
+
+    
     # Constants block
     sqrt2 = np.sqrt(2)
     mad2rms = 1.4826
@@ -268,6 +361,7 @@ def preprocess(filename,
                                           baselineIndex=baselineMask,
                                           noiserms=noise)
             else:
+                print(np.sum(thismask))
                 specData = baselineSpectrum(specData, order=blorder,
                                             baselineIndex=baselineMask)
         if gainDict:

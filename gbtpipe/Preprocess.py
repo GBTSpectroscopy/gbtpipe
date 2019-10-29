@@ -68,7 +68,7 @@ def drawTimeSeriesPlot(data, filename='TimeSeriesPlot',
     fig = plt.figure(figsize=(8.0,6.5))
     ax = fig.add_subplot(111)
     if flags is not None:
-        flagmask = np.ones(data.shape[0]) * flags.astype(np.int)[np.newaxis]
+        flagmask = 1-flags[np.newaxis].T * np.ones((1, data.shape[1]))
     else:
         flagmask = 1.0
     im = ax.imshow(data * flagmask,
@@ -216,6 +216,8 @@ def preprocess(filename,
     outscans = []
     outwts = []
     tsyslist = []
+    flagct = 0
+
     for idx, (spectrum, vframe) in enumerate(zip(s, vframe_list)):
         if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
             continue
@@ -274,11 +276,10 @@ def preprocess(filename,
                 continue
         else:
             feedwt = 1.0
-        # baseline fit
 
         tsys = spectrum['TSYS']
         outslice = (specData)[startChannel:endChannel]
-        flagct = 0
+        
         if flagRMS:
             radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
                                             spectrum['EXPOSURE'])
@@ -287,7 +288,7 @@ def preprocess(filename,
 
             if scan_rms > rmsThresh * radiometer_rms:
                 tsys = 0 # Blank spectrum
-
+                
         if flagRipple:
             scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
                                                     outslice[2:]))
@@ -295,6 +296,7 @@ def preprocess(filename,
 
             if ripple > rippleThresh * scan_rms:
                 tsys = 0 # Blank spectrum
+
         if tsys == 0:
             flagct +=1
 

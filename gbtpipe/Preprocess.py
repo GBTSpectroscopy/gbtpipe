@@ -74,7 +74,6 @@ def drawTimeSeriesPlot(data, filename='TimeSeriesPlot',
     if flags is not None:
         for y in (np.where(flags))[0]:
             ax.axhline(y, alpha=0.5, color='green')
-            import pdb; pdb.set_trace()
     ax.set_xlabel('Channel')
     # ax.set_title((filename.split('/'))[-1])
     ax.set_ylabel('Scan')

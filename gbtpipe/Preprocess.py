@@ -208,7 +208,9 @@ def preprocess(filename,
 
     # BEFORE PLOT
     if plotTimeSeries:
-        drawTimeSeriesPlot(s['DATA'], filename=plotsubdir + filename)
+        drawTimeSeriesPlot(s['DATA'],
+                           filename=filename,
+                           plotsubdir=plotsubdir)
     
     if windowStrategy == 'cubemask':
         maskLookup = buildMaskLookup(maskfile)
@@ -285,7 +287,6 @@ def preprocess(filename,
                                             spectrum['EXPOSURE'])
             scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
                                                     outslice[2:]))
-
             if scan_rms > rmsThresh * radiometer_rms:
                 tsys = 0 # Blank spectrum
                 
@@ -315,7 +316,8 @@ def preprocess(filename,
     # AFTER PLOT
     if plotTimeSeries:
         drawTimeSeriesPlot(np.array(outscans),
-                           filename=plotsubdir + filename,
+                           filename=filename,
+                           plotsubdir=plotsubdir,
                            suffix='flagged.png',
                            flags=(np.array(tsyslist) == 0))
 

@@ -361,7 +361,6 @@ def preprocess(filename,
                                           baselineIndex=baselineMask,
                                           noiserms=noise)
             else:
-                print(np.sum(thismask))
                 specData = baselineSpectrum(specData, order=blorder,
                                             baselineIndex=baselineMask)
         if gainDict:
@@ -388,7 +387,7 @@ def preprocess(filename,
             scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
                                                     outslice[2:]))
             ripple = prefac * sqrt2 * np.median(np.abs(outslice))
-            print(ripple/scan_rms)
+
             if ripple > rippleThresh * scan_rms:
                 tsys = 0 # Blank spectrum
 

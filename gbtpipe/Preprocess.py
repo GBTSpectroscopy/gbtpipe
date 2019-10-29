@@ -31,7 +31,9 @@ def buildMaskLookup(filename):
     mask = np.array(maskcube.filled_data[:], dtype=np.bool)
     spatial_mask = np.any(mask, axis=0)        
     nuinterp = interp1d(maskcube.spectral_axis.to(u.Hz).value,
-                        np.arange(maskcube.shape[0]))
+                        np.arange(maskcube.shape[0]),
+                        bounds_error=False,
+                        fill_value='extrapolate')
     def maskLookup(ra, dec, freq):
         xx, yy, zz = wcs.wcs_world2pix(ra, dec, freq, 0)
         if (0 <= xx[0] < spatial_mask.shape[1] and
@@ -41,13 +43,16 @@ def buildMaskLookup(filename):
             emission = False
         if emission:
             zz = np.array(nuinterp(freq), dtype=np.int)
+            zz[zz < 0] = 0
+            zz[zz >= mask.shape[0]] = mask.shape[0] - 1
             return(mask[zz, yy.astype(np.int), xx.astype(np.int)])
         else:
             return(np.zeros_like(freq, dtype=np.bool))
     return(maskLookup)
 
 def drawTimeSeriesPlot(data, filename='TimeSeriesPlot',
-                       suffix='png', outdir=None, plotsubdir=''):
+                       suffix='png', outdir=None, plotsubdir='',
+                       flags=None):
     if outdir is None:
         outdir = os.getcwd()
     if not os.access(outdir, os.W_OK):
@@ -66,8 +71,12 @@ def drawTimeSeriesPlot(data, filename='TimeSeriesPlot',
                     interpolation='nearest',
                     cmap='PuOr', vmin=(4*vmin-3*vmed),
                     vmax=4*vmax-3*vmed)
+    if flags is not None:
+        for y in (np.where(flags))[0]:
+            ax.axhline(y, alpha=0.5, color='green')
+            import pdb; pdb.set_trace()
     ax.set_xlabel('Channel')
-    ax.set_title((filename.split('/'))[-1])
+    # ax.set_title((filename.split('/'))[-1])
     ax.set_ylabel('Scan')
     cb = fig.colorbar(im)
     cb.set_label('Intensity (K)')
@@ -146,18 +155,20 @@ def preprocess(filename,
                blorder=1,
                OnlineDoppler=True,
                flagRMS=True,
+               rmsThresh=1.25,
                flagRipple=True,
                rippleThresh=2,
                plotTimeSeries=False,
-               rmsThresh=1.25,
                spikeThresh=10,
                flagSpike=True,
                windowStrategy='simple',
                maskfile=None,
+               edgefraction=0.05,
                restFrequences=None,
                gainDict=None,
                outdir=None,
                plotsubdir='',
+               robust=False,
                **kwargs):
 
     # Constants block
@@ -169,13 +180,17 @@ def preprocess(filename,
 
     s = fits.getdata(filename)
 
+    nData = len(s[0]['DATA'])
 
     if startChannel is None:
-        startChannel = 0
+        startChannel = int(edgefraction * nData)
     if endChannel is None:
-        endChannel = len(s[0]['DATA'])
-    nChannel = endChannel - startChannel
+        endChannel = int((1 - edgefraction) * nData)
 
+    nChannel = endChannel - startChannel
+    if baselineRegion is None:
+        baselineRegion = [slice(startChannel, endChannel, 1)]
+    
     if outdir is None:
         outdir = os.getcwd()
 
@@ -183,7 +198,8 @@ def preprocess(filename,
     crpix3 = s[0]['CRPIX1'] - startChannel
     ctype3 = s[0]['CTYPE1']
     cdelt3 = s[0]['CDELT1'] 
-    spectral_axis = (np.arange(nChannel) + 1 - crpix3) * cdelt3 + crval3
+    spectral_axis = (np.arange(nData)
+                     + 1 - crpix3) * cdelt3 + crval3
     
     if not OnlineDoppler:
         vframe_list = VframeInterpolator(s)
@@ -192,7 +208,7 @@ def preprocess(filename,
 
     # BEFORE PLOT
     if plotTimeSeries:
-        drawTimeSeriesPlot(s['DATA'], filename=filename)
+        drawTimeSeriesPlot(s['DATA'], filename=plotsubdir + filename)
     
     if windowStrategy == 'cubemask':
         maskLookup = buildMaskLookup(maskfile)
@@ -210,7 +226,7 @@ def preprocess(filename,
         DeltaChan = DeltaNu / cdelt3
         specData = channelShift(specData, -DeltaChan)
         baselineMask = np.zeros_like(specData, dtype=np.bool)
-
+        noise = None
         if flagSpike:
             jumps = (specData - np.roll(specData, -1))
             noise = mad1d(jumps) * 2**(-0.5)
@@ -226,14 +242,16 @@ def preprocess(filename,
         # This then compares to the desired frequency CRVAL3.
 
         if windowStrategy == 'simple':
-            baselineIndex = simpleWindow(spectrum, **kwargs)
+            baselineIndex = simpleWindow(spectrum,
+                                         edgefraction=edgefraction,
+                                         **kwargs)
             for r in baselineIndex:
                 baselineMask[r] = True
 
         if windowStrategy == 'cubemask':
             baselineMask[:] = True
-            baselineMask[0:int(0.05 * nChannel)] = False
-            baselineMask[(nChannel - int(0.05 * nChannel)):-1] = False
+            baselineMask[0:int(edgefraction * nData)] = False
+            baselineMask[int((1 - edgefraction) * nData):] = False
             thismask = maskLookup((spectrum['CRVAL2'] 
                                    * np.ones_like(spectral_axis)),
                                   (spectrum['CRVAl3']
@@ -241,9 +259,13 @@ def preprocess(filename,
                                   spectral_axis)
             baselineMask[np.squeeze(thismask.astype(np.bool))] = False
         if doBaseline & np.all(np.isfinite(specData[baselineMask])):
-            specData = baselineSpectrum(specData, order=blorder,
-                                        baselineIndex=baselineMask)
-
+            if robust:
+                specData = robustBaseline(specData, blorder=blorder,
+                                          baselineIndex=baselineMask,
+                                          noiserms=noise)
+            else:
+                specData = baselineSpectrum(specData, order=blorder,
+                                            baselineIndex=baselineMask)
         if gainDict:
             try:
                 feedwt = 1.0/gainDict[(str(spectrum['FDNUM']).strip(),
@@ -290,6 +312,9 @@ def preprocess(filename,
 
     # AFTER PLOT
     if plotTimeSeries:
-        drawTimeSeriesPlot(np.array(outscans), filename=filename, suffix='flagged.png')
+        drawTimeSeriesPlot(np.array(outscans),
+                           filename=plotsubdir + filename,
+                           suffix='flagged.png',
+                           flags=(np.array(tsyslist) == 0))
 
     return(s, np.array(outscans), np.array(outwts), np.array(tsyslist))

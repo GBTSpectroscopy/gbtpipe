@@ -22,6 +22,9 @@ from .Preprocess import preprocess
 
 from . import __version__
 
+# It's going to happen.  We should get used to it.
+np.seterr(divide='ignore', invalid='ignore')
+
 def is_outlier(points, thresh=3.5):
     """
     Pulled from:
@@ -238,8 +241,8 @@ def griddata(filelist,
             #  plotTimeSeries=False,
             #  rmsThresh=1.25,
             #  spikeThresh=10,
-            #  flagSpatialOutlier=False,
             #  plotsubdir='',
+             flagSpatialOutlier=False,
              projection='TAN',
              outdir=None, 
              outname=None,
@@ -396,10 +399,6 @@ def griddata(filelist,
         startChannel = 0
     if endChannel is None:
         endChannel = len(s[0]['DATA'])
-
-    if baselineRegion is None:
-        baselineRegion = [slice(startChannel, endChannel, 1)]
-
     
     naxis3 = len(s[0]['DATA'][startChannel:endChannel])
 
@@ -511,8 +510,11 @@ def griddata(filelist,
             longCoord = s[1].data['CRVAL2']
             latCoord = s[1].data['CRVAL3']
 
-        spectra, outscan, specwts, tsys = preprocess(thisfile, **kwargs)
-        for i in range(len(s)):    
+        spectra, outscan, specwts, tsys = preprocess(thisfile,
+                                                     startChannel=startChannel,
+                                                     endChannel=endChannel,
+                                                     **kwargs)
+        for i in range(len(spectra)):    
             xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[i],
                                                         latCoord[i],
                                                         spectra[i]['CRVAL1'], 0)
@@ -526,19 +528,18 @@ def griddata(filelist,
                 wts = pixelWeight / tsys[i]**2
                 outCube[:, ymat[Index], xmat[Index]] += vector
                 outWts[ymat[Index], xmat[Index]] += wts
-           
         # Temporarily do a file write for every batch of scans.
         outWtsTemp = np.copy(outWts)
         outWtsTemp.shape = (1,) + outWtsTemp.shape
         outCubeTemp = np.copy(outCube)
         outCubeTemp /= outWtsTemp
         hdr = fits.Header(w.to_header())
-
+        
         hdr = addHeader_nonStd(hdr, beamSize, s[1].data)
         #
         hdu = fits.PrimaryHDU(outCubeTemp, header=hdr)
         hdu.writeto(outdir + '/' + outname + '.fits', overwrite=True)
-
+        
     outWts.shape = (1,) + outWts.shape
     outCube /= outWts
 

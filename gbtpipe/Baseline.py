@@ -180,7 +180,7 @@ def baselineSpectrum(spectrum, order=1, baselineIndex=()):
     return(spectrum)
 
 
-def robustBaseline(y, v, baselineIndex, blorder=1, noiserms=None):
+def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
     x = np.linspace(-1, 1, len(y))
     if noiserms is None:
         noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])

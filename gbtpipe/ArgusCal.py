@@ -359,8 +359,11 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
             row_list, summary = sdf.parseSdfitsIndex(indexfile,
                                                      mapscans=command_options.mapscans)
             feedlist = (row_list.feeds())
-            for bad in badfeeds:
-                feedlist.remove(bad)
+
+            # all feeds aren't going to be in the feedlist. The feedlist is per bank.
+            if badfeeds in feedlist:
+                for bad in badfeeds:
+                    feedlist.remove(bad)
 
             #Currently Argus only has one spectral window and polarization
             for thisfeed in feedlist:

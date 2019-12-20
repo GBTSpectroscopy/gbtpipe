@@ -311,12 +311,19 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
     cl_params = initParameters(inputdir)
     # Assume spacing in uniform between start and stop
     cl_params.mapscans = list(np.linspace(start,stop,
+
                                           stop-start+1).astype('int'))
     for bad in badscans:
-        cl_params.mapscans.remove(bad)
+        if bad in cl_params.mapscans:
+            cl_params.mapscans.remove(bad)
+        
     cl_params.refscans = refscans
-    
-    
+    for bad in badscans:
+        if bad in cl_params.refscans:
+            cl_params.refscans.remove(bad)
+    # some logic should probably be added here if all ref scans are
+    # bad, but in that case it would be a QA0 fail.
+
     if os.path.isdir(cl_params.infilename):
         log.doMessage('INFO', 'Infile name is a directory')
         input_directory = cl_params.infilename
@@ -361,10 +368,10 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
             feedlist = (row_list.feeds())
 
             # all feeds aren't going to be in the feedlist. The feedlist is per bank.
-            if badfeeds in feedlist:
-                for bad in badfeeds:
+            for bad in badfeeds:
+                if bad in feedlist:
                     feedlist.remove(bad)
-
+            
             #Currently Argus only has one spectral window and polarization
             for thisfeed in feedlist:
                 thispol = 0 # TODO: generalize to different POL/WIN
@@ -382,7 +389,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                 except KeyError:
                     pipe = None
                     pass
-                if pipe:
+                if pipe:                    
                     tcal, vaneCounts, tsysStar = gettsys(cl_params, row_list,
                                                          thisfeed, thispol,
                                                          thiswin, pipe,

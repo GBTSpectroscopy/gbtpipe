@@ -216,6 +216,8 @@ def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25, **kwargs):
     """
     x, y = wcs.celestial.wcs_world2pix(integrations.data['CRVAL2'],
                                      integrations.data['CRVAL3'], 0)
+    y = np.clip(y, 0, mask.shape[0] - 1)
+    x = np.clip(x, 0, mask.shape[1] - 1)
     OffMask = np.array(mask[y.astype(np.int), x.astype(np.int)], dtype=np.bool)
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside zone of avoidance")

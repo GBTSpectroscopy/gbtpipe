@@ -218,7 +218,12 @@ def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25, **kwargs):
                                      integrations.data['CRVAL3'], 0)
     y = np.clip(y, 0, mask.shape[0] - 1)
     x = np.clip(x, 0, mask.shape[1] - 1)
+    badx = ~np.isfinite(x)
+    bady = ~np.isfinite(y)
+    x[badx] = 0
+    y[bady] = 0
     OffMask = np.array(mask[y.astype(np.int), x.astype(np.int)], dtype=np.bool)
+    mask[x.astype(np.int)[badx], y.astype(np.int)[bady]] = False
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside zone of avoidance")
         warnings.warn("Using row ends")

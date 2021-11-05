@@ -151,12 +151,13 @@ def autoHeader(filelist, beamSize=0.0087, pixPerBeam=3.0,
     DEClist = []
     for thisfile in filelist: 
         s = fits.getdata(thisfile)
-        try:
-            idx = (s['OBJECT'] != 'VANE') * (s['OBJECT'] != 'SKY')
-            RAlist = RAlist + [s['CRVAL2'][idx]]
-            DEClist = DEClist + [s['CRVAL3'][idx]]
-        except:
-            pdb.set_trace()
+        if len(s) > 0:
+            try:
+                idx = (s['OBJECT'] != 'VANE') * (s['OBJECT'] != 'SKY')
+                RAlist = RAlist + [s['CRVAL2'][idx]]
+                DEClist = DEClist + [s['CRVAL3'][idx]]
+            except:
+                pdb.set_trace()
 
     longitude = np.array(list(itertools.chain(*RAlist)))
     latitude = np.array(list(itertools.chain(*DEClist)))
@@ -399,15 +400,22 @@ def griddata(filelist,
 
         ctr += 1
         s = fits.open(thisfile)
+
+        if len(s) < 2:
+            warnings.warn("Corrupted file: {0}".format(thisfile))
+            continue
+
+            
+        if len(s[1].data) == 0:
+            warnings.warn("Corrupted file: {0}".format(thisfile))
+            continue
+        
         if flagSpatialOutlier:
                 # Remove outliers in Lat/Lon space
                 f = np.where(is_outlier(s[1].data['CRVAL2'], thresh=1.5)!=True)
                 s[1].data = s[1].data[f]
                 f = np.where(is_outlier(s[1].data['CRVAL3'], thresh=1.5)!=True)
                 s[1].data = s[1].data[f]
-        if len(s[1].data) == 0:
-            warnings.warn("Corrupted file: {0}".format(thisfile))
-            continue
         nuindex = np.arange(len(s[1].data['DATA'][0]))
 
         flagct = 0

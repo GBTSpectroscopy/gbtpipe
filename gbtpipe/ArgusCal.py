@@ -22,6 +22,9 @@ import sys
 import astropy.units as u
 import astropy.wcs as wcs
 from astropy.coordinates import SkyCoord
+from multiprocessing import Pool
+from functools import partial
+
 
 def makelogdir():
     # Creates log director required by default by gbtpipe
@@ -194,9 +197,9 @@ def ZoneOfAvoidance(integrations, center=None,
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside zone of avoidance")
         warnings.warn("Using row ends")
-        OffMask = RowEnds(integrations, off_frac=off_frac)
-        return(OffMask)
-    return(OffMask)
+        OffMask, _ = RowEnds(integrations, off_frac=off_frac)
+        return(OffMask, 'RowEnds')
+    return(OffMask, 'ZoneOfAvoidance')
 
 def FrequencySwitch(integrations):
     raise(NotImplementedError)
@@ -215,14 +218,76 @@ def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25, **kwargs):
 
     """
     x, y = wcs.celestial.wcs_world2pix(integrations.data['CRVAL2'],
-                                     integrations.data['CRVAL3'], 0)
+                                       integrations.data['CRVAL3'], 0)
+    y = np.clip(y, 0, mask.shape[0] - 1)
+    x = np.clip(x, 0, mask.shape[1] - 1)
+    badx = ~np.isfinite(x)
+    bady = ~np.isfinite(y)
+    x[badx] = 0
+    y[bady] = 0
     OffMask = np.array(mask[y.astype(np.int), x.astype(np.int)], dtype=np.bool)
+    # mask[x.astype(np.int)[badx], y.astype(np.int)[bady]] = False
     if np.all(~OffMask):
-        warnings.warn("No scans found that are outside zone of avoidance")
+        warnings.warn("No scans found that are outside mask.")
         warnings.warn("Using row ends")
-        OffMask = RowEnds(integrations, off_frac=off_frac)
-        return(OffMask)
-    return(OffMask)
+        OffMask, _ = RowEnds(integrations, off_frac=off_frac)
+        return(OffMask, 'RowEnds')
+    return(OffMask, 'SpatialMask')
+
+def SpatialSpectralMask(integrations, mask=None, wcs=None,
+                        off_frac=0.25, floatvalues=False, offpct=50,
+                        **kwargs):
+    scanshape = integrations.data['DATA'].shape # Nscans x Nchans
+    OffMask = np.array(scanshape, dtype=np.bool)
+    freq = ((np.linspace(1, scanshape[1], scanshape[1])[np.newaxis, :]
+            - integrations.data['CRPIX1'][:, np.newaxis])
+            * integrations.data['CDELT1'][:, np.newaxis]
+            + integrations.data['CRVAL1'][:, np.newaxis])
+    x, y, z = wcs.wcs_world2pix(integrations.data['CRVAL2'][:, np.newaxis],
+                                integrations.data['CRVAL3'][:, np.newaxis],
+                                freq, 0)
+    y = np.clip(y, 0, mask.shape[1] - 1)
+    x = np.clip(x, 0, mask.shape[2] - 1)
+    z = np.clip(z, 0, mask.shape[0] - 1)
+    badx = ~np.isfinite(x)
+    bady = ~np.isfinite(y)
+    badz = ~np.isfinite(z)
+    x[badx] = 0
+    y[bady] = 0
+    z[badz] = 0
+    # OffMask = True where OFF the galaxy)
+    if floatvalues:
+        OffEmission = np.array(mask[z.astype(np.int),
+                                    y.astype(np.int),
+                                    x.astype(np.int)],
+                               dtype=np.float)
+        OffMask = OffEmission > 0
+        EmScans = np.sum(OffEmission, axis=1)
+        BetterScans = (EmScans <= np.percentile(EmScans, offpct))
+        OffMask = (BetterScans[:, np.newaxis]
+                   * np.ones((1, OffEmission.shape[1]), dtype=np.bool))
+        # blank_chans = np.all(OffEmission == 0, axis=0)
+        AllOn = np.all(~OffMask, axis=0)
+    else:
+        OffMask = np.array(mask[z.astype(np.int),
+                                y.astype(np.int),
+                                x.astype(np.int)], dtype=np.bool)
+        OffMask = ~OffMask
+        AllOn = np.all(~OffMask, axis=0)
+
+        # mask[x.astype(np.int)[badx], y.astype(np.int)[bady]] = False    
+    if np.any(AllOn):
+        warnings.warn("Some channels always on emission")
+        OffMask[:, AllOn] = True
+    return(OffMask, 'SpatialSpectralMask')
+    return(OffMask, 'SpatialSpectralMask')
+
+
+def NoMask(integrations, **kwargs):
+    scanshape = integrations.data['DATA'].shape # Nscans x Nchans
+    OffMask = np.ones(scanshape, dtype=np.bool)
+    return(OffMask, 'NoMask')
+
 
 def RowEnds(integrations, off_frac=0.25, **kwargs):
     """This function defines the OFFs as the ends of the rows
@@ -236,13 +301,13 @@ def RowEnds(integrations, off_frac=0.25, **kwargs):
     OffMask = np.zeros(nIntegrations, dtype=np.bool)
     OffMask[0:int(off_frac*nIntegrations)] = True
     OffMask[-int(off_frac*nIntegrations):] = True
-    return(OffMask)
+    return(OffMask, 'RowEnds')
 
 def calscans(inputdir, start=82, stop=105, refscans=[80],
              badscans=[], badfeeds=[],
              outdir=None, log=None, loglevel='warning',
              OffSelector=RowEnds, OffType='linefit',
-             verbose=True, suffix='', **kwargs):
+             verbose=True, suffix='', nProc=1, **kwargs):
     """Main calibration routine
 
     Parameters
@@ -398,129 +463,258 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                             thisfeed,
                             tsysStar))
 
+
+                    # pipe, row_list, thisscan, thisfeed, thispol, thiswin
+
+                    onoffsets = []
                     for thisscan in cl_params.mapscans:
                         if verbose:
                             print("Now Processing Scan {0} for Feed {1}".format(
                                 thisscan, thisfeed).ljust(50), end='\r')
                             sys.stdout.flush()
+                        onoffsets.append(prepcal(thisscan, thisfeed=thisfeed,
+                                                 thispol=thispol,
+                                                 thiswin=thiswin, pipe=pipe,
+                                                 row_list=row_list,
+                                                 log=log, weather=w,
+                                                 cal=cal,
+                                                 OffSelector=OffSelector,
+                                                 OffType=OffType,
+                                                 tsysStar=tsysStar,
+                                                 vaneCounts=vaneCounts,
+                                                 cl_params=cl_params,
+                                                 command_options=command_options,
+                                                 allfiles=allfiles,
+                                                 tcal=tcal, **kwargs))
+                    print('\n')
 
-                        rows = row_list.get(thisscan, thisfeed,
-                                            thispol, thiswin)
-                        ext = rows['EXTENSION']
-                        rows = rows['ROW']
-                        columns = tuple(pipe.infile[ext].get_colnames())
-                        integs = ConvenientIntegration(
-                            pipe.infile[ext][columns][rows], log=log)
-                        
-                        # Grab everything we need to get a Tsys measure
-                        timestamps = integs.data['DATE-OBS']
-                        elevation = np.median(integs.data['ELEVATIO'])
-                        mjds = np.array([pipe.pu.dateToMjd(stamp)
-                                         for stamp in timestamps])
-                        avgfreq = np.median(integs.data['OBSFREQ'])
-                        zenithtau = w.retrieve_zenith_opacity(np.median(mjds),
-                                                              avgfreq,
-                                                              log=log,
-                                                              forcecalc=True)
-                        tau = cal.elevation_adjusted_opacity(zenithtau,
-                                                             elevation)
 
-                        # ARGUS beams 2 and 3 (software 1 and 2)
-                        # were swapped before 2018-10-22 19:30:00 UT
+                    if nProc > 1:
+                        with Pool(nProc) as pool:
+                            calonoffsets = pool.map(doOnOff, onoffsets)
+                    else:
+                        calonoffsets = []
+                        for i, onoff in enumerate(onoffsets):
+                            calonoffsets.append(doOnOff(onoff, OffType=OffType))
 
-                        if mjds[0] < 58413.81250000 and (thisfeed == 1):
-                            integs2 = findfeed(cl_params, allfiles,
-                                               command_options.mapscans,
-                                               thisscan, 2,
-                                               log=log)
-                            integs.data['CRVAL2'] = integs2.data['CRVAL2']
-                            integs.data['CRVAL3'] = integs2.data['CRVAL3']
-
-                        if mjds[0] < 58413.81250000 and (thisfeed == 2):
-                            integs2 = findfeed(cl_params, allfiles,
-                                               command_options.mapscans,
-                                               thisscan, 1,
-                                               log=log)
-                            integs.data['CRVAL2'] = integs2.data['CRVAL2']
-                            integs.data['CRVAL3'] = integs2.data['CRVAL3']
-                        
-                        # This block actually does the calibration
-                        ON = integs.data['DATA']
-                        # This identifies which scans to include as OFFs
-                        OffMask = OffSelector(integs, **kwargs)
-                        if OffType == 'median':
-                            # Model the off power as the median counts
-                            # across the whole bandpass. This assumes
-                            # that line power is weak per scan and per
-                            # channel.
-                            OFF = np.median(ON[OffMask, :], axis=0) 
-                            # Empirical bandpass
-                            OFF.shape += (1,)
-                            OFF = OFF * np.ones((1, ON.shape[0]))
-                            OFF = OFF.T
-
-                        if OffType == 'linefit':
-                            # This block fits a line to the off scans 
-                            # in the bandpass as a model for the power.
-                            xaxis = np.linspace(-0.5,0.5,ON.shape[0])
-                            xaxis.shape += (1,)
-                            xaxis = xaxis * np.ones((1,ON.shape[1]))
-                            xsub = xaxis[OffMask,:]
-                            ONsub = ON[OffMask, :]
-
-                            # This is a little tedious because we want
-                            # to vectorize the least-squares fit per
-                            # scan.
-                            MeanON = np.nanmean(ONsub, axis=0)
-                            MeanON.shape += (1,)
-                            MeanON = MeanON * np.ones((1, ONsub.shape[0]))
-                            MeanON = MeanON.T
-
-                            MeanX = np.nanmean(xsub, axis=0)
-                            MeanX.shape += (1,)
-                            MeanX = MeanX * np.ones((1, ONsub.shape[0]))
-                            MeanX = MeanX.T
-
-                            # The solution to all linear least-squares.
-                            slope = (np.nansum(((xsub - MeanX)
-                                                * (ONsub - MeanON)),
-                                               axis=0)
-                                     / np.nansum((xsub - MeanX)**2,
-                                                 axis=0))
-                            slope.shape += (1,)
-                            slope = slope * np.ones((1, ON.shape[0]))
-                            MeanON = MeanON[0,:]
-                            MeanON.shape += (1,)
-                            MeanON = MeanON * np.ones((1,ON.shape[0]))
-                            MeanON = MeanON.T
-                            # This the off model.
-                            OFF = slope.T * xaxis + MeanON
-                        medianOFF = np.nanmedian(OFF, axis=0)
-                                                
-                        # Now construct a scalar factor by taking
-                        # median OFF power (over time) and compare to
-                        # the mean vaneCounts over time.  Then take
-                        # the median of this ratio and apply.
-
-                        scalarOFFfactor = np.median(medianOFF /
-                                                    (vaneCounts - medianOFF))
-                        TA = (tcal * scalarOFFfactor
-                              * (ON - OFF) / (OFF))
-                        medianTA = np.median(TA, axis=1)
-                        medianTA.shape = (1,) + medianTA.shape
-                        medianTA = np.ones((ON.shape[1], 1)) * medianTA
-                        TAstar = TA - medianTA.T
-                        for ctr, rownum in enumerate(rows):
+                    for onoff in calonoffsets:
+                        for ctr, rownum in enumerate(onoff['rows']):
                             # This updates the output SDFITS file with
                             # the newly calibrated data.
-
-                            # row = Integration(
-                            #     pipe.infile[ext][columns][rownum])
-                            row = np.array([integs.data[ctr]])
-                            row['DATA'] = TAstar[ctr,:]
+                            row = np.array([onoff['integs'].data[ctr]])
+                            row['DATA'] = onoff['TAstar'][ctr,:]
                             row['TSYS'] = tsysStar
                             row['TUNIT7'] = 'Ta*'
                             pipe.outfile[-1].append(row)
+
                     pipe.infile.close()
                     pipe.outfile.close()
     return True
+
+def prepcal(thisscan, thisfeed=0, thispol=0,
+            thiswin=0, pipe=None, row_list=None, log=None,
+            weather=None, cal=None, OffSelector=None, vaneCounts=None,
+            tcal=None, tsysStar=None, cl_params=None, allfiles=None,
+            command_options=None, OffType=None,
+            **kwargs):
+                        
+    rows = row_list.get(thisscan, thisfeed,thispol, thiswin)
+    ext = rows['EXTENSION']
+    rows = rows['ROW']
+    columns = tuple(pipe.infile[ext].get_colnames())
+    integs = ConvenientIntegration(
+        pipe.infile[ext][columns][rows], log=log)
+
+    # Grab everything we need to get a Tsys measure
+    timestamps = integs.data['DATE-OBS']
+    elevation = np.median(integs.data['ELEVATIO'])
+    mjds = np.array([pipe.pu.dateToMjd(stamp)
+                     for stamp in timestamps])
+    avgfreq = np.median(integs.data['OBSFREQ'])
+    zenithtau = weather.retrieve_zenith_opacity(np.median(mjds),
+                                                avgfreq,
+                                                log=log,
+                                                forcecalc=True)
+    tau = cal.elevation_adjusted_opacity(zenithtau,
+                                         elevation)
+
+    # ARGUS beams 2 and 3 (software 1 and 2)
+    # were swapped before 2018-10-22 19:30:00 UT
+
+    if mjds[0] < 58413.81250000 and (thisfeed == 1):
+        integs2 = findfeed(cl_params, allfiles,
+                           command_options.mapscans,
+                           thisscan, 2,
+                           log=log)
+        integs.data['CRVAL2'] = integs2.data['CRVAL2']
+        integs.data['CRVAL3'] = integs2.data['CRVAL3']
+
+    if mjds[0] < 58413.81250000 and (thisfeed == 2):
+        integs2 = findfeed(cl_params, allfiles,
+                           command_options.mapscans,
+                           thisscan, 1,
+                           log=log)
+        integs.data['CRVAL2'] = integs2.data['CRVAL2']
+        integs.data['CRVAL3'] = integs2.data['CRVAL3']
+
+    # This block actually does the calibration
+    ON = integs.data['DATA']
+    # This identifies which scans to include as OFFs
+    OffMask, OffStrategy = OffSelector(integs, **kwargs)
+    if OffStrategy=='RowEnds' and OffType=='linefit':
+        OffType = 'median'
+    if OffStrategy=='SpatialMask' and OffType=='median':
+        OffType = 'linefit'
+
+    onoff = {'rows':rows,
+             'integs':integs,
+             'TAstar':ON,
+             'tsysStar':tsysStar,
+             'ON':ON,
+             'OffMask':OffMask,
+             'tcal':tcal,
+             'vaneCounts':vaneCounts}
+    
+    return(onoff)
+
+def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds'):
+    ON = onoff['ON']
+    OffMask = onoff['OffMask']
+    vaneCounts = onoff['vaneCounts']
+
+    if OffType == 'median2d':
+
+        # This builds a 2D median map of a data set then does a
+        # linear fit to the residual in the time axis to correct the residual.
+        
+        medianpow = np.nanmedian(ON, axis=1)
+        medianpow /= np.nanmean(medianpow)
+        medianON = np.nanmedian(ON, axis=0)
+        OFF = (medianON[np.newaxis, :]
+               * medianpow[:, np.newaxis])
+
+        diff = (ON-OFF)
+        xaxis = np.linspace(-0.5,0.5,diff.shape[0])
+        xaxis.shape += (1,)
+        xaxis = xaxis * np.ones((1,diff.shape[1]))
+        xsub = xaxis
+        ONsub = copy.deepcopy(diff)
+        ONsub[~OffMask] = np.nan
+        # This is a little tedious because we want
+        # to vectorize the least-squares fit per
+        # scan.
+        # MeanON = np.nanmean(ONsub, axis=0)
+        MeanON = np.nanmedian(ONsub, axis=0)
+        MeanON.shape += (1,)
+        MeanON = MeanON * np.ones((1, ONsub.shape[0]))
+        MeanON = MeanON.T
+
+        MeanX = np.nanmean(xsub, axis=0)
+        MeanX.shape += (1,)
+        MeanX = MeanX * np.ones((1, ONsub.shape[0]))
+        MeanX = MeanX.T
+
+        # The solution to all linear least-squares.
+        slope = (np.nansum(((xsub - MeanX)
+                            * (ONsub - MeanON)),
+                           axis=0)
+                 / np.nansum((xsub - MeanX)**2,
+                             axis=0))
+        slope.shape += (1,)
+        slope = slope * np.ones((1, ON.shape[0]))
+        MeanON = MeanON[0,:]
+        MeanON.shape += (1,)
+        MeanON = MeanON * np.ones((1,ON.shape[0]))
+        MeanON = MeanON.T
+        # This the off model.
+        DiffCorr = slope.T * xaxis + MeanON
+        OFF = OFF + DiffCorr
+
+    if OffType == 'PCA':
+        # Use PCA to generate the components
+        from sklearn.decomposition import PCA
+        ncomp = 10
+        if OffMask.ndim == 1:
+            ONselect = ON[np.where(OffMask)[0],:]
+        else:
+            ONselect = ON[np.where(OffMask[:,0])[0],:]
+        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]))
+        pcaobj.fit(ONselect)
+        coeffs = pcaobj.transform(ON)
+        MeanON = np.nanmean(ONselect,axis=0)
+        retain = np.sum(pcaobj.explained_variance_ratio_ > 0.0001)
+        OFF = (np.dot(coeffs[:, 0:retain],
+                      pcaobj.components_[0:retain, :])
+               + MeanON)
+
+
+    if OffType == 'median':
+        # Model the off power as the median counts
+        # across the whole bandpass. This assumes
+        # that line power is weak per scan and per
+        # channel.
+        medianOFF = np.nanmedian(ON, axis=0)
+        OFF = np.median(ON[OffMask, :], axis=0) 
+        # Empirical bandpass
+        OFF.shape += (1,)
+        OFF = OFF * np.ones((1, ON.shape[0]))
+        OFF = OFF.T
+
+    if OffType == 'linefit':
+        # This block fits a line to the off scans 
+        # in the bandpass as a model for the power.
+        xaxis = np.linspace(-0.5,0.5,ON.shape[0])
+        xaxis.shape += (1,)
+        xaxis = xaxis * np.ones((1,ON.shape[1]))
+        # xsub = xaxis[OffMask,:]
+        # ONsub = ON[OffMask, :]
+        xsub = xaxis
+        ONsub = copy.deepcopy(ON)
+        ONsub[~OffMask] = np.nan
+        # This is a little tedious because we want
+        # to vectorize the least-squares fit per
+        # scan.
+        MeanON = np.nanmean(ONsub, axis=0)
+        # MeanON = np.nanmedian(ON, axis=0)
+        MeanON.shape += (1,)
+        MeanON = MeanON * np.ones((1, ONsub.shape[0]))
+        MeanON = MeanON.T
+
+        MeanX = np.nanmean(xsub, axis=0)
+        MeanX.shape += (1,)
+        MeanX = MeanX * np.ones((1, ONsub.shape[0]))
+        MeanX = MeanX.T
+
+        # The solution to all linear least-squares.
+        slope = (np.nansum(((xsub - MeanX)
+                            * (ONsub - MeanON)),
+                           axis=0)
+                 / np.nansum((xsub - MeanX)**2,
+                             axis=0))
+        slope.shape += (1,)
+        slope = slope * np.ones((1, ON.shape[0]))
+        MeanON = MeanON[0,:]
+        MeanON.shape += (1,)
+        MeanON = MeanON * np.ones((1,ON.shape[0]))
+        MeanON = MeanON.T
+        # This the off model.
+        OFF = slope.T * xaxis + MeanON
+
+    medianOFF = np.nanmedian(OFF, axis=0)
+
+    # Now construct a scalar factor by taking
+    # median OFF power (over time) and compare to
+    # the mean vaneCounts over time.  Then take
+    # the median of this ratio and apply.
+
+    scalarOFFfactor = np.median(medianOFF /
+                                (vaneCounts - medianOFF))
+    TA = (onoff['tcal'] * scalarOFFfactor
+          * (ON - OFF) / (OFF))
+    medianTA = np.median(TA, axis=1)
+    medianTA.shape = (1,) + medianTA.shape
+    medianTA = np.ones((ON.shape[1], 1)) * medianTA
+    TAstar = TA - medianTA.T
+    onoff['TAstar'] = TAstar
+    return(onoff)
+

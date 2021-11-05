@@ -237,7 +237,6 @@ def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25, **kwargs):
 def SpatialSpectralMask(integrations, mask=None, wcs=None,
                         off_frac=0.25, floatvalues=False, offpct=50,
                         **kwargs):
-    
     scanshape = integrations.data['DATA'].shape # Nscans x Nchans
     OffMask = np.array(scanshape, dtype=np.bool)
     freq = ((np.linspace(1, scanshape[1], scanshape[1])[np.newaxis, :]
@@ -308,7 +307,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
              badscans=[], badfeeds=[],
              outdir=None, log=None, loglevel='warning',
              OffSelector=RowEnds, OffType='linefit',
-             verbose=True, suffix='', nProcs=8, **kwargs):
+             verbose=True, suffix='', nProc=1, **kwargs):
     """Main calibration routine
 
     Parameters
@@ -480,6 +479,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                  log=log, weather=w,
                                                  cal=cal,
                                                  OffSelector=OffSelector,
+                                                 OffType=OffType,
                                                  tsysStar=tsysStar,
                                                  vaneCounts=vaneCounts,
                                                  cl_params=cl_params,
@@ -489,13 +489,13 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                     print('\n')
 
 
-                    if nProcs > 1:
-                        with Pool(nProcs) as pool:
+                    if nProc > 1:
+                        with Pool(nProc) as pool:
                             calonoffsets = pool.map(doOnOff, onoffsets)
                     else:
                         calonoffsets = []
                         for i, onoff in enumerate(onoffsets):
-                            calonoffsets.append(doOnOff(onoff))
+                            calonoffsets.append(doOnOff(onoff, OffType=OffType))
 
                     for onoff in calonoffsets:
                         for ctr, rownum in enumerate(onoff['rows']):
@@ -515,7 +515,7 @@ def prepcal(thisscan, thisfeed=0, thispol=0,
             thiswin=0, pipe=None, row_list=None, log=None,
             weather=None, cal=None, OffSelector=None, vaneCounts=None,
             tcal=None, tsysStar=None, cl_params=None, allfiles=None,
-            command_options=None,
+            command_options=None, OffType=None,
             **kwargs):
                         
     rows = row_list.get(thisscan, thisfeed,thispol, thiswin)
@@ -565,7 +565,7 @@ def prepcal(thisscan, thisfeed=0, thispol=0,
         OffType = 'median'
     if OffStrategy=='SpatialMask' and OffType=='median':
         OffType = 'linefit'
-    OffType = 'PCA'
+
     onoff = {'rows':rows,
              'integs':integs,
              'TAstar':ON,
@@ -581,37 +581,22 @@ def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds'):
     ON = onoff['ON']
     OffMask = onoff['OffMask']
     vaneCounts = onoff['vaneCounts']
+
     if OffType == 'median2d':
-        # BlankON = copy.deepcopy(ON)
-        # if OffMask.ndim == 1:
-        #     OffMask = OffMask[:, np.newaxis] * np.ones((1, ON.shape[1]), dtype=np.bool)
-        # AllOFF = np.sum(OffMask, axis=0)
-        # AllOFF = AllOFF == AllOFF.max()
-        # BlankON[~(np.ones((ON.shape[0], 1), dtype=np.bool)
-        #           * AllOFF[np.newaxis, :])] = np.nan
-        # medianpow = (np.nanmedian(BlankON, axis=1)
-        #            / np.nanmedian(BlankON))
+
+        # This builds a 2D median map of a data set then does a
+        # linear fit to the residual in the time axis to correct the residual.
+        
         medianpow = np.nanmedian(ON, axis=1)
         medianpow /= np.nanmean(medianpow)
-        #BlankON[~OffMask] = np.nan
         medianON = np.nanmedian(ON, axis=0)
         OFF = (medianON[np.newaxis, :]
                * medianpow[:, np.newaxis])
 
-        # logdiff = np.log(ON) - np.log(medianON)[np.newaxis, :]
-        # mediandiff = np.nanmedian(logdiff, axis=1)
-        # fraccovered = (np.sum(mediandiff[:, np.newaxis]
-        # * OffMask, axis=0) /np.sum(OffMask, axis=0))
-        # fraccovered-= np.mean(mediandiff)
-        # OFF = np.exp((np.log(medianON)[np.newaxis, :]
-        #              + mediandiff[:, np.newaxis]
-        #              - fraccovered[np.newaxis, :]))
         diff = (ON-OFF)
         xaxis = np.linspace(-0.5,0.5,diff.shape[0])
         xaxis.shape += (1,)
         xaxis = xaxis * np.ones((1,diff.shape[1]))
-        # xsub = xaxis[OffMask,:]
-        # ONsub = ON[OffMask, :]
         xsub = xaxis
         ONsub = copy.deepcopy(diff)
         ONsub[~OffMask] = np.nan
@@ -646,14 +631,18 @@ def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds'):
         OFF = OFF + DiffCorr
 
     if OffType == 'PCA':
-        from sklearn.decomposition import PCA, SparsePCA
+        # Use PCA to generate the components
+        from sklearn.decomposition import PCA
         ncomp = 10
-        ONselect = ON[np.where(OffMask[:,0])[0],:]
-        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[1]]))
+        if OffMask.ndim == 1:
+            ONselect = ON[np.where(OffMask)[0],:]
+        else:
+            ONselect = ON[np.where(OffMask[:,0])[0],:]
+        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]))
         pcaobj.fit(ONselect)
         coeffs = pcaobj.transform(ON)
         MeanON = np.nanmean(ONselect,axis=0)
-        retain = np.sum(pcaobj.explained_variance_ratio_ > 0.03)
+        retain = np.sum(pcaobj.explained_variance_ratio_ > 0.0001)
         OFF = (np.dot(coeffs[:, 0:retain],
                       pcaobj.components_[0:retain, :])
                + MeanON)

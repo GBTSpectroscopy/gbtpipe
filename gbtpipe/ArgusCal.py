@@ -172,8 +172,8 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
     else:
         zenithtau = 0
         tatm = 273
-        log.warn('Setting Zenith opacity to zero!')
-        log.warn('Temperatures on TA scale')
+        log.warning('Setting Zenith opacity to zero!')
+        log.warning('Temperatures on TA scale')
 
     # This does the airmass calculation
     tau = cal.elevation_adjusted_opacity(zenithtau, elevation)

@@ -144,8 +144,8 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
         vaneCounts = np.mean(vec2, axis=0)
     else:
         # If you are here, then you will not get data today
-        warnings.warn("No Vane scans found in putative reference scans.")
-        warnings.warn("Making a wild guess that's probably wrong...")
+        log.logger.warning("No Vane scans found in putative reference scans.")
+        log.logger.warning("Making a wild guess that's probably wrong...")
         onoff = np.nanmedian((vec1-vec2)/vec2)
         vaneCounts = np.nanmean(vec1, axis=0)
 
@@ -159,7 +159,7 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
     # Pull warm load temperature from the data
     twarm = np.mean(integ1.data['TWARM']+273.15)
     tbg = 2.725  # It's the CMB
-    # tambient = np.mean(integ1.data['TAMBIENT'])
+    tambient = np.mean(integ1.data['TAMBIENT'])
     avgfreq = np.mean(integ1.data['OBSFREQ'])
 
     # Use weather model to get the atmospheric temperature and opacity
@@ -169,12 +169,17 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
                                                     request='Opacity')
         tatm = weather.retrieve_Tatm(mjd, avgfreq, log=log,
                                      forcecalc=True)
+        if not zenithtau:
+            log.logger.warning('No weather data found in GBTWEATHER directory')
+            log.logger.warning('Setting Zenith opacity to zero!')
+            log.logger.warning('Temperatures on TA scale')
+            zenithtau = 0
+            tatm = tambient
     else:
         zenithtau = 0
-        tatm = 273
-        log.warning('Setting Zenith opacity to zero!')
-        log.warning('Temperatures on TA scale')
-
+        tatm = tambient
+        log.logger.warning('Setting Zenith opacity to zero!')
+        log.logger.warning('Temperatures on TA scale')
     # This does the airmass calculation
     tau = cal.elevation_adjusted_opacity(zenithtau, elevation)
     tcal = (tatm - tbg) + (twarm - tatm) * np.exp(tau)

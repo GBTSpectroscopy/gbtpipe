@@ -467,7 +467,8 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                     tcal, vaneCounts, tsysStar = gettsys(cl_params, row_list,
                                                          thisfeed, thispol,
                                                          thiswin, pipe,
-                                                         weather=w, log=log)
+                                                         weather=w, log=log,
+                                                         opacity=opacity)
                     log.doMessage('INFO', 'Feed: {0}, Tsys (K): {1}'.format(
                             thisfeed,
                             tsysStar))

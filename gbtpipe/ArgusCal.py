@@ -72,6 +72,7 @@ def findfeed(cl_params, allfiles, mapscans, thisscan, feednum,
 
         
 def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
+            opacity=True,
             weather=None, log=None):
     """
     Determine Tsys for list of map rows
@@ -143,8 +144,8 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
         vaneCounts = np.mean(vec2, axis=0)
     else:
         # If you are here, then you will not get data today
-        warnings.warn("No Vane scans found in putative reference scans.")
-        warnings.warn("Making a wild guess that's probably wrong...")
+        log.logger.warning("No Vane scans found in putative reference scans.")
+        log.logger.warning("Making a wild guess that's probably wrong...")
         onoff = np.nanmedian((vec1-vec2)/vec2)
         vaneCounts = np.nanmean(vec1, axis=0)
 
@@ -158,16 +159,27 @@ def gettsys(cl_params, row_list, thisfeed, thispol, thiswin, pipe,
     # Pull warm load temperature from the data
     twarm = np.mean(integ1.data['TWARM']+273.15)
     tbg = 2.725  # It's the CMB
-    # tambient = np.mean(integ1.data['TAMBIENT'])
+    tambient = np.mean(integ1.data['TAMBIENT'])
     avgfreq = np.mean(integ1.data['OBSFREQ'])
 
     # Use weather model to get the atmospheric temperature and opacity
-    zenithtau = weather.retrieve_zenith_opacity(mjd, avgfreq, log=log,
-                                                forcecalc=True,
-                                                request='Opacity')
-    tatm = weather.retrieve_Tatm(mjd, avgfreq, log=log,
-                                 forcecalc=True)
-
+    if opacity:
+        zenithtau = weather.retrieve_zenith_opacity(mjd, avgfreq, log=log,
+                                                    forcecalc=True,
+                                                    request='Opacity')
+        tatm = weather.retrieve_Tatm(mjd, avgfreq, log=log,
+                                     forcecalc=True)
+        if not zenithtau:
+            log.logger.warning('No weather data found in GBTWEATHER directory')
+            log.logger.warning('Setting Zenith opacity to zero!')
+            log.logger.warning('Temperatures on TA scale')
+            zenithtau = 0
+            tatm = tambient
+    else:
+        zenithtau = 0
+        tatm = tambient
+        log.logger.warning('Setting Zenith opacity to zero!')
+        log.logger.warning('Temperatures on TA scale')
     # This does the airmass calculation
     tau = cal.elevation_adjusted_opacity(zenithtau, elevation)
     tcal = (tatm - tbg) + (twarm - tatm) * np.exp(tau)
@@ -307,7 +319,9 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
              badscans=[], badfeeds=[],
              outdir=None, log=None, loglevel='warning',
              OffSelector=RowEnds, OffType='linefit',
-             verbose=True, suffix='', nProc=1, **kwargs):
+             verbose=True, suffix='', nProc=1,
+             opacity=True,
+             **kwargs):
     """Main calibration routine
 
     Parameters
@@ -458,7 +472,8 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                     tcal, vaneCounts, tsysStar = gettsys(cl_params, row_list,
                                                          thisfeed, thispol,
                                                          thiswin, pipe,
-                                                         weather=w, log=log)
+                                                         weather=w, log=log,
+                                                         opacity=opacity)
                     log.doMessage('INFO', 'Feed: {0}, Tsys (K): {1}'.format(
                             thisfeed,
                             tsysStar))
@@ -485,6 +500,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                  cl_params=cl_params,
                                                  command_options=command_options,
                                                  allfiles=allfiles,
+                                                 opacity=opacity,
                                                  tcal=tcal, **kwargs))
                     print('\n')
 
@@ -515,7 +531,7 @@ def prepcal(thisscan, thisfeed=0, thispol=0,
             thiswin=0, pipe=None, row_list=None, log=None,
             weather=None, cal=None, OffSelector=None, vaneCounts=None,
             tcal=None, tsysStar=None, cl_params=None, allfiles=None,
-            command_options=None, OffType=None,
+            command_options=None, OffType=None, opacity=True,
             **kwargs):
                         
     rows = row_list.get(thisscan, thisfeed,thispol, thiswin)
@@ -531,13 +547,18 @@ def prepcal(thisscan, thisfeed=0, thispol=0,
     mjds = np.array([pipe.pu.dateToMjd(stamp)
                      for stamp in timestamps])
     avgfreq = np.median(integs.data['OBSFREQ'])
-    zenithtau = weather.retrieve_zenith_opacity(np.median(mjds),
-                                                avgfreq,
-                                                log=log,
-                                                forcecalc=True)
-    tau = cal.elevation_adjusted_opacity(zenithtau,
-                                         elevation)
 
+    # if opacity:
+    #     zenithtau = weather.retrieve_zenith_opacity(np.median(mjds),
+    #                                                 avgfreq,
+    #                                                 log=log,
+    #                                                 forcecalc=True)
+    #     tau = cal.elevation_adjusted_opacity(zenithtau,
+    #                                          elevation)
+    # else:
+    #     tau = 0
+    #     log.log('Opacity set to zero.  All data on T_A scale only')
+        
     # ARGUS beams 2 and 3 (software 1 and 2)
     # were swapped before 2018-10-22 19:30:00 UT
 

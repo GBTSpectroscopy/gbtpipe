@@ -25,13 +25,14 @@
 import sys
 import os
 import glob
+from pathlib import Path
 
 from .Calibration import Calibration
 from .PipeLogging import Logging
 
 class Weather:
 
-    def __init__(self, database = '/users/rmaddale/Weather/ArchiveCoeffs/'):
+    def __init__(self, database = Path('/users/rmaddale/Weather/ArchiveCoeffs')):
 # alternative DB /home/gbtpipeline/weather/
         self.cal = Calibration()
         self.last_integration_mjd_timestamp = None
@@ -45,7 +46,7 @@ class Weather:
         self.db_time_range = None
         self.log = None
         try:
-            self.database = os.environ['GBTWEATHER']
+            self.database = Path(os.environ['GBTWEATHER'])
         except KeyError:
             if os.path.isdir(database):
                 self.database = database
@@ -57,8 +58,8 @@ class Weather:
         # retrieve a list of opacity coefficients files, based on a given directory
         # and filename structure
         opacity_coefficients_filename = False
-        opacity_files = glob.glob(self.database+'Coeffs'+request+
-                                  'FreqList_avrg_*.txt')        
+        opacity_files = glob.glob(str(self.database) + ('/Coeffs'+request+
+                                  'FreqList_avrg_*.txt'))
         if 0 == len(opacity_files):
             return False, False
 
@@ -98,8 +99,9 @@ class Weather:
             # opacity coefficients files, then we can assume the current opacity
             # coefficients file will apply.  a date string is only added to the opacity
             # coefficients file when it is no longer the most current.
-            opacity_coefficients_filename = self.database+'Coeffs'+\
-                request+'FreqList_avrg.txt'
+            opacity_coefficients_filename = self.database / ('Coeffs'
+                                                             + request
+                                                             + 'FreqList_avrg.txt')
             opacity_db_range = 'LATEST'
 
         # opacities coefficients filename

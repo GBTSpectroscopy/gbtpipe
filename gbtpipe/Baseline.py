@@ -51,7 +51,7 @@ def ammoniaLoss(fullcoefs, y, x, v, noise, line='oneone', chthrow=None):
 #########################
 
 def ammoniaWindow(spectrum, spaxis, freqthrow=4.11 * u.MHz,
-                  window=3, v0=8.5, line='oneone', outerwindow=None):
+                  window=3, v0=8.5, line='oneone', outerwindow=None, **kwargs):
     """
     This defines a narrow window around the v0 value for ammonia hyperfines.
 
@@ -150,14 +150,14 @@ def tightWindow(spectrum, spaxis,
         mask[(spaxis < (v0 - outerwindow))] = True
     return(~mask)
 
-def simpleWindow(spectrum, innerfraction=0.2, edgefraction=0.05):
+def simpleWindow(spectrum, innerfraction=0.2, edgefraction=0.05, **kwargs):
     nChan = len(spectrum['DATA'])
     return([slice(int(edgefraction * nChan),
                   int((0.5 - innerfraction / 2) * edgefraction * nChan), 1),
             slice(int((0.5 + innerfraction / 2) * edgefraction * nChan),
                   int((1.0 - edgefraction) * nChan), 1)])
 
-def maskWindow(mask, spectrum, velocity_convention='radio'):
+def maskWindow(mask, spectrum, velocity_convention='radio', **kwargs):
     mask = mask.with_spectral_unit(u.km / u.s,
                                    velocity_convention=velocity_convention)
     spectrum = spectrum.with_spectral_unit(u.km / u.s,
@@ -310,7 +310,7 @@ def rebaseline(filename, blorder=3,
             pb.update()
     outsc = SpectralCube(outcube, cube.wcs, header=cube.header,
                          meta={'BUNIT':cube.header['BUNIT']})
-    outsc = outsc[runmin:runmax, :, :]  # cut beyond baseline edges
+    # outsc = outsc[runmin:runmax, :, :]  # cut beyond baseline edges
 
     # Return to original spectral unit
     outsc = outsc.with_spectral_unit(originalUnit)

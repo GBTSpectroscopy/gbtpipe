@@ -231,14 +231,14 @@ def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25, **kwargs):
     """
     x, y = wcs.celestial.wcs_world2pix(integrations.data['CRVAL2'],
                                        integrations.data['CRVAL3'], 0)
-    y = np.clip(y, 0, mask.shape[0] - 1)
-    x = np.clip(x, 0, mask.shape[1] - 1)
-    badx = ~np.isfinite(x)
-    bady = ~np.isfinite(y)
-    x[badx] = 0
-    y[bady] = 0
-    OffMask = np.array(mask[y.astype(np.int), x.astype(np.int)], dtype=np.bool)
-    # mask[x.astype(np.int)[badx], y.astype(np.int)[bady]] = False
+    inx = np.logical_and((x >= 0), (x <= (mask.shape[1] - 1)))
+    iny = np.logical_and((y >= 0), (y <= (mask.shape[0] - 1)))
+    inarr = np.logical_and(inx, iny)
+    OffMask = np.ones(len(x), dtype=bool)
+    # Masks show where the emission IS and OffMask wants
+    # the points where the mask IS NOT.  Hence the ~
+    OffMask[inarr] = np.array(~mask[y[inarr].astype(np.int),
+                                    x[inarr].astype(np.int)], dtype=bool)
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside mask.")
         warnings.warn("Using row ends")
@@ -273,7 +273,7 @@ def SpatialSpectralMask(integrations, mask=None, wcs=None,
                                     y.astype(np.int),
                                     x.astype(np.int)],
                                dtype=np.float)
-        OffMask = OffEmission > 0
+        OffMask = np.zeros_like(OffEmission, dtype=bool)
         EmScans = np.sum(OffEmission, axis=1)
         BetterScans = (EmScans <= np.percentile(EmScans, offpct))
         OffMask = (BetterScans[:, np.newaxis]
@@ -287,12 +287,12 @@ def SpatialSpectralMask(integrations, mask=None, wcs=None,
         OffMask = ~OffMask
         AllOn = np.all(~OffMask, axis=0)
 
-        # mask[x.astype(np.int)[badx], y.astype(np.int)[bady]] = False    
+        # mask[x.astype(np.int)[badx], y.astype(np.int)[bady]] = False
     if np.any(AllOn):
         warnings.warn("Some channels always on emission")
         OffMask[:, AllOn] = True
     return(OffMask, 'SpatialSpectralMask')
-    return(OffMask, 'SpatialSpectralMask')
+
 
 
 def NoMask(integrations, **kwargs):
@@ -320,7 +320,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
              outdir=None, log=None, loglevel='warning',
              OffSelector=RowEnds, OffType='linefit',
              verbose=True, suffix='', nProc=1,
-             opacity=True,
+             opacity=True, varfrac=0.05,
              **kwargs):
     """Main calibration routine
 
@@ -501,6 +501,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                  command_options=command_options,
                                                  allfiles=allfiles,
                                                  opacity=opacity,
+                                                 varfrac=varfrac,
                                                  tcal=tcal, **kwargs))
                     print('\n')
 
@@ -511,7 +512,8 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                     else:
                         calonoffsets = []
                         for i, onoff in enumerate(onoffsets):
-                            calonoffsets.append(doOnOff(onoff, OffType=OffType))
+                            calonoffsets.append(doOnOff(onoff, OffType=OffType,
+                                                        varfrac=varfrac))
 
                     for onoff in calonoffsets:
                         for ctr, rownum in enumerate(onoff['rows']):
@@ -598,7 +600,7 @@ def prepcal(thisscan, thisfeed=0, thispol=0,
     
     return(onoff)
 
-def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds'):
+def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds', varfrac=0.05):
     ON = onoff['ON']
     OffMask = onoff['OffMask']
     vaneCounts = onoff['vaneCounts']
@@ -654,6 +656,7 @@ def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds'):
     if OffType == 'PCA':
         # Use PCA to generate the components
         from sklearn.decomposition import PCA
+
         ncomp = 10
         if OffMask.ndim == 1:
             ONselect = ON[np.where(OffMask)[0],:]
@@ -661,13 +664,16 @@ def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds'):
             ONselect = ON[np.where(OffMask[:,0])[0],:]
         pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]))
         pcaobj.fit(ONselect)
+        # pcaobj.fit(np.r_[ONselect,
+        #                  np.roll(ONselect, 1, axis=1),
+        #                  np.roll(ONselect, -1, axis=1)])
+        
         coeffs = pcaobj.transform(ON)
         MeanON = np.nanmean(ONselect,axis=0)
-        retain = np.sum(pcaobj.explained_variance_ratio_ > 0.0001)
+        retain = np.sum(pcaobj.explained_variance_ratio_ > varfrac)
         OFF = (np.dot(coeffs[:, 0:retain],
                       pcaobj.components_[0:retain, :])
                + MeanON)
-
 
     if OffType == 'median':
         # Model the off power as the median counts

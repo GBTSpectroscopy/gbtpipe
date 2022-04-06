@@ -494,31 +494,31 @@ def griddata(filelist,
     hdu2 = fits.PrimaryHDU(outWts, header=hdr2)
     hdu2.writeto(outdir + '/' + outname + '_wts.fits', overwrite=True)
 
-    if rebase:
-        if rebaseorder is None:
-            rebaseorder = blorder
-        if 'NH3_11' in outname:
-            Baseline.rebaseline(outdir + '/' + outname + '.fits',
-                                windowFunction=Baseline.ammoniaWindow,
-                                line='oneone', blorder=rebaseorder,
-                                **kwargs)
+    # if rebase:
+    #     if rebaseorder is None:
+    #         rebaseorder = blorder
+    #     if 'NH3_11' in outname:
+    #         rebaseline(outdir + '/' + outname + '.fits',
+    #                    windowFunction=Baseline.ammoniaWindow,
+    #                    line='oneone', blorder=rebaseorder,
+    #                    **kwargs)
 
-        elif 'NH3_22' in outname:
-            Baseline.rebaseline(outdir + '/' + outname + '.fits',
-                                windowFunction=Baseline.ammoniaWindow,
-                                line='twotwo', blorder=rebaseorder,
-                                **kwargs)
+    #     elif 'NH3_22' in outname:
+    #         rebaseline(outdir + '/' + outname + '.fits',
+    #                    windowFunction=Baseline.ammoniaWindow,
+    #                    line='twotwo', blorder=rebaseorder,
+    #                    **kwargs)
 
-        elif 'NH3_33' in outname:
-            Baseline.rebaseline(outdir + '/' + outname + '.fits',
-                                winfunc = Baseline.ammoniaWindow,
-                                blorder=rebaseorder,
-                                line='threethree', **kwargs)
-        else:
-            Baseline.rebaseline(outdir + '/' + outname + '.fits',
-                                blorder=rebaseorder,
-                                windowFunction=Baseline.tightWindow, 
-                                **kwargs)
+    #     elif 'NH3_33' in outname:
+    #         rebaseline(outdir + '/' + outname + '.fits',
+    #                    winfunc = Baseline.ammoniaWindow,
+    #                    blorder=rebaseorder,
+    #                    line='threethree', **kwargs)
+    #     else:
+    #         rebaseline(outdir + '/' + outname + '.fits',
+    #                    blorder=rebaseorder,
+    #                    windowFunction=Baseline.tightWindow, 
+    #                    **kwargs)
 
 
         # for idx, spectrum in enumerate(console.ProgressBar((s[1].data))):

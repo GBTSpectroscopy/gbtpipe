@@ -354,7 +354,11 @@ def preprocess(filename,
                                   (spectrum['CRVAl3']
                                    * np.ones_like(spectral_axis)),
                                   spectral_axis)
+
             baselineMask[np.squeeze(thismask.astype(np.bool))] = False
+            # if np.any(thismask):
+            #     import pdb; pdb.set_trace()
+
         if doBaseline & np.all(np.isfinite(specData[baselineMask])):
             if robust:
                 specData = robustBaseline(specData, blorder=blorder,
@@ -373,26 +377,29 @@ def preprocess(filename,
             feedwt = 1.0
 
         tsys = spectrum['TSYS']
-        outslice = (specData)[startChannel:endChannel]
         
         if flagRMS:
+            offSpec = specData[baselineMask]
             radiometer_rms = tsys / np.sqrt(np.abs(spectrum['CDELT1']) *
                                             spectrum['EXPOSURE'])
-            scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
-                                                    outslice[2:]))
+            scan_rms = prefac * np.median(np.abs(offSpec[0:-2] -
+                                                    offSpec[2:]))
             if scan_rms > rmsThresh * radiometer_rms:
                 tsys = 0 # Blank spectrum
                 
         if flagRipple:
-            scan_rms = prefac * np.median(np.abs(outslice[0:-2] -
-                                                    outslice[2:]))
-            ripple = prefac * sqrt2 * np.median(np.abs(outslice))
+            offSpec = specData[baselineMask]
+            scan_rms = prefac * np.median(np.abs(offSpec[0:-2] -
+                                                    offSpec[2:]))
+            ripple = prefac * sqrt2 * np.median(np.abs(offSpec))
 
             if ripple > rippleThresh * scan_rms:
                 tsys = 0 # Blank spectrum
 
         if tsys == 0:
             flagct +=1
+            
+        outslice = (specData)[startChannel:endChannel]
 
         spectrum_wt = ((np.isfinite(outslice)
                         * spikemask[startChannel:

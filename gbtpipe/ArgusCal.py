@@ -662,7 +662,8 @@ def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds', varfrac=0.05):
             ONselect = ON[np.where(OffMask)[0],:]
         else:
             ONselect = ON[np.where(OffMask[:,0])[0],:]
-        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]))
+        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]),
+                     svd_solver='full')
         pcaobj.fit(ONselect)
         # pcaobj.fit(np.r_[ONselect,
         #                  np.roll(ONselect, 1, axis=1),

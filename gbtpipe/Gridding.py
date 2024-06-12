@@ -81,7 +81,7 @@ def postConvolve(filein, bmaj=None, bmin=None,
     bpa ; astropy.Quantity.Angle
         Position angle of new beam
 
-    beamscale : np.float
+    beamscale : float
        Increase the beam size by this fraction upon convolution.
        Default to 1.1
        
@@ -389,8 +389,8 @@ def griddata(filelist,
                              indexing='ij')
     xmat = xmat.reshape(xmat.size)
     ymat = ymat.reshape(ymat.size)
-    xmat = xmat.astype(np.int)
-    ymat = ymat.astype(np.int)
+    xmat = xmat.astype(int)
+    ymat = ymat.astype(int)
 
     ctr = 0
 
@@ -546,7 +546,7 @@ def griddata(filelist,
         #         spikemask = spikemask * np.roll(spikemask, 1)
         #         specData[~spikemask] = 0.0
         #     else:
-        #         spikemask = np.ones_like(specData, dtype=np.bool)
+        #         spikemask = np.ones_like(specData, dtype=bool)
 
         #     if doBaseline & np.all(np.isfinite(specData[baselineIndex])):
         #         specData = baselineSpectrum(specData, order=blorder,
@@ -566,7 +566,7 @@ def griddata(filelist,
         #     outslice = (specData)[startChannel:endChannel]
         #     spectrum_wt = ((np.isfinite(outslice)
         #                     * spikemask[startChannel:
-        #                                 endChannel]).astype(np.float)
+        #                                 endChannel]).astype(float)
         #                    * feedwt)
         #     outslice = np.nan_to_num(outslice)
         #     xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[idx],

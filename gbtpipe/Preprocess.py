@@ -28,7 +28,7 @@ from . import __version__
 def buildMaskLookup(filename):
     maskcube = SpectralCube.read(filename)
     wcs = maskcube.wcs
-    mask = np.array(maskcube.filled_data[:], dtype=np.bool)
+    mask = np.array(maskcube.filled_data[:], dtype=bool)
     spatial_mask = np.any(mask, axis=0)        
     nuinterp = interp1d(maskcube.spectral_axis.to(u.Hz).value,
                         np.arange(maskcube.shape[0]),
@@ -42,12 +42,12 @@ def buildMaskLookup(filename):
         else:
             emission = False
         if emission:
-            zz = np.array(nuinterp(freq), dtype=np.int)
+            zz = np.array(nuinterp(freq), dtype=int)
             zz[zz < 0] = 0
             zz[zz >= mask.shape[0]] = mask.shape[0] - 1
-            return(mask[zz, yy.astype(np.int), xx.astype(np.int)])
+            return(mask[zz, yy.astype(int), xx.astype(int)])
         else:
-            return(np.zeros_like(freq, dtype=np.bool))
+            return(np.zeros_like(freq, dtype=bool))
     return(maskLookup)
 
 def drawTimeSeriesPlot(data, filename='TimeSeriesPlot',
@@ -322,7 +322,7 @@ def preprocess(filename,
                                     -vframe) - crval3
         DeltaChan = DeltaNu / cdelt3
         specData = channelShift(specData, -DeltaChan)
-        baselineMask = np.zeros_like(specData, dtype=np.bool)
+        baselineMask = np.zeros_like(specData, dtype=bool)
         noise = None
         if flagSpike:
             jumps = (specData - np.roll(specData, -1))
@@ -331,7 +331,7 @@ def preprocess(filename,
             spikemask = spikemask * np.roll(spikemask, 1)
             specData[~spikemask] = 0.0
         else:
-            spikemask = np.ones_like(specData, dtype=np.bool)
+            spikemask = np.ones_like(specData, dtype=bool)
 
         # This part takes the TOPOCENTRIC frequency that is at
         # CRPIX1 (i.e., CRVAL1) and calculates the what frequency
@@ -355,7 +355,7 @@ def preprocess(filename,
                                    * np.ones_like(spectral_axis)),
                                   spectral_axis)
 
-            baselineMask[np.squeeze(thismask.astype(np.bool))] = False
+            baselineMask[np.squeeze(thismask.astype(bool))] = False
             # if np.any(thismask):
             #     import pdb; pdb.set_trace()
 
@@ -403,7 +403,7 @@ def preprocess(filename,
 
         spectrum_wt = ((np.isfinite(outslice)
                         * spikemask[startChannel:
-                                    endChannel]).astype(np.float)
+                                    endChannel]).astype(float)
                         * feedwt)
         outslice = np.nan_to_num(outslice)
         outscans += [outslice]

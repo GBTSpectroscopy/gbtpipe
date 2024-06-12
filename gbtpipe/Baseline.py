@@ -61,11 +61,11 @@ def ammoniaWindow(spectrum, spaxis, freqthrow=4.11 * u.MHz,
         The one-dimensional spectrum
     spaxis : np.array
         The spectral axis in units of km/s for the input spectrum
-    window : np.float
+    window : float
         Width, in km/s, around the input velocity to consider emission
-    outerwindow : np.float
+    outerwindow : float
         Velocity separations larger than this value are ignored in the baseline
-    v0 : np.float
+    v0 : float
         Central velocity in km/s for emission window
     freqthrow : astropy.Quantity
         frequency swith throw for the observations.
@@ -77,7 +77,7 @@ def ammoniaWindow(spectrum, spaxis, freqthrow=4.11 * u.MHz,
         Boolean array of regions to use in the baseline fitting.
     """
 
-    mask = np.zeros_like(spectrum, dtype=np.bool)
+    mask = np.zeros_like(spectrum, dtype=bool)
     voffs = np.array([dv for dv in acons.voff_lines_dict[line]])
     for voff in voffs:
         mask[(spaxis > (v0 + voff - window)) *
@@ -86,14 +86,14 @@ def ammoniaWindow(spectrum, spaxis, freqthrow=4.11 * u.MHz,
     deltachan = freqthrow / ((spaxis[1] - spaxis[0]) / 299792.458 *
                              acons.freq_dict[line] * u.Hz)
     deltachan = deltachan.to(u.dimensionless_unscaled).value
-    deltachan = (np.floor(np.abs(deltachan))).astype(np.int)
+    deltachan = (np.floor(np.abs(deltachan))).astype(int)
 
     if (deltachan < spaxis.size):
         mask = np.logical_or(mask, np.r_[mask[deltachan:-1],
                                          np.zeros(deltachan + 1,
-                                                  dtype=np.bool)])
+                                                  dtype=bool)])
         mask = np.logical_or(mask, np.r_[np.zeros(deltachan + 1,
-                                                  dtype=np.bool),
+                                                  dtype=bool),
                                          mask[0:(-deltachan - 1)]])
 
     if outerwindow is not None:
@@ -115,11 +115,11 @@ def tightWindow(spectrum, spaxis,
         The one-dimensional spectrum
     spaxis : np.array
         The spectral axis in units of km/s for the input spectrum
-    window : np.float
+    window : float
         Width, in km/s, around the input velocity to consider emission
-    outerwindow : np.float
+    outerwindow : float
         Velocity separations larger than this value are ignored in the baseline
-    v0 : np.float
+    v0 : float
         Central velocity in km/s for emission window
     freqthrow : astropy.Quantity
         frequency swith throw for the observations.
@@ -129,21 +129,21 @@ def tightWindow(spectrum, spaxis,
         Boolean array of regions to use in the baseline fitting.
     """
 
-    mask = np.zeros_like(spectrum, dtype=np.bool)
+    mask = np.zeros_like(spectrum, dtype=bool)
     mask[(spaxis > (v0 - window)) * (spaxis < (v0 + window))] = True
     deltachan = freqthrow / ((spaxis[1] - spaxis[0]) /
                              299792.458 * 0.5 * (spaxis[1] +
                                                  spaxis[0]) * u.GHz)
     deltachan = deltachan.to(u.dimensionless_unscaled).value
-    deltachan = (np.floor(np.abs(deltachan))).astype(np.int)
+    deltachan = (np.floor(np.abs(deltachan))).astype(int)
 
     if (deltachan < spaxis.size):
 
         mask = np.logical_or(mask, np.r_[mask[deltachan:-1],
                                          np.zeros(deltachan + 1,
-                                                  dtype=np.bool)])
+                                                  dtype=bool)])
         mask = np.logical_or(mask, np.r_[np.zeros(deltachan + 1,
-                                                  dtype=np.bool),
+                                                  dtype=bool),
                                          mask[0:(-deltachan - 1)]])
     if outerwindow is not None:
         mask[(spaxis > (v0 + outerwindow))] = True
@@ -166,11 +166,11 @@ def maskWindow(mask, spectrum, velocity_convention='radio', **kwargs):
     v, d, a = spectrum.world[:, :, :]
     x, y, z = mask.wcs.wcs_world2pix(a, d, v.to(u.m / u.s), 0)
     shape = mask.shape
-    x = np.round(np.clip(x, 0, shape[2]-1)).astype(np.int)
-    y = np.round(np.clip(y, 0, shape[1]-1)).astype(np.int)
-    z = np.round(np.clip(z, 0, shape[0]-1)).astype(np.int)
+    x = np.round(np.clip(x, 0, shape[2]-1)).astype(int)
+    y = np.round(np.clip(y, 0, shape[1]-1)).astype(int)
+    z = np.round(np.clip(z, 0, shape[0]-1)).astype(int)
 
-    specmask = np.squeeze(~np.asarray(mask.filled_data[:][z, y, x], dtype=np.bool))
+    specmask = np.squeeze(~np.asarray(mask.filled_data[:][z, y, x], dtype=bool))
     return(specmask)
 
 def baselineSpectrum(spectrum, order=1, baselineIndex=()):
@@ -202,7 +202,7 @@ def baselineWithAmmonia(y, v, baselineIndex,
     chthrow = (freqthrow.to(u.Hz).value
                / acons.freq_dict[line]
                * 299792.458 / np.abs(v[0]-v[1]))
-    chthrow = (np.round(chthrow)).astype(np.int)
+    chthrow = (np.round(chthrow)).astype(int)
     if noiserms is None:
         noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
 
@@ -278,7 +278,7 @@ def rebaseline(filename, blorder=3,
             baselineIndex = windowFunction(spectrum, spaxis,
                                            v0=v0, **kwargs)
         else:
-            baselineIndex = np.zeros_like(spectrum,dtype=np.bool)
+            baselineIndex = np.zeros_like(spectrum,dtype=bool)
             for ss in baselineRegion:
                 baselineIndex[ss] = True
 

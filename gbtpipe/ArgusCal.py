@@ -505,15 +505,15 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                  tcal=tcal, **kwargs))
                     print('\n')
                         
-                    calonoffsets = doOnOffAggregated(onoffsets, OffType=OffType,)
-                    # if nProc > 1:
-                    #     with Pool(nProc) as pool:
-                    #         calonoffsets = pool.map(doOnOff, onoffsets)
-                    # else:
-                    #     calonoffsets = []
-                    #     for i, onoff in enumerate(onoffsets):
-                    #         calonoffsets.append(doOnOff(onoff, OffType=OffType,
-                    #                                     varfrac=varfrac))
+                    # calonoffsets = doOnOffAggregated(onoffsets, OffType=OffType,)
+                    if nProc > 1:
+                        with Pool(nProc) as pool:
+                            calonoffsets = pool.map(doOnOff, onoffsets)
+                    else:
+                        calonoffsets = []
+                        for i, onoff in enumerate(onoffsets):
+                            calonoffsets.append(doOnOff(onoff, OffType=OffType,
+                                                        varfrac=varfrac))
 
                     for onoff in calonoffsets:
                         for ctr, rownum in enumerate(onoff['rows']):

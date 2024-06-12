@@ -237,8 +237,8 @@ def SpatialMask(integrations, mask=None, wcs=None, off_frac=0.25, **kwargs):
     OffMask = np.ones(len(x), dtype=bool)
     # Masks show where the emission IS and OffMask wants
     # the points where the mask IS NOT.  Hence the ~
-    OffMask[inarr] = np.array(~mask[y[inarr].astype(np.int),
-                                    x[inarr].astype(np.int)], dtype=bool)
+    OffMask[inarr] = np.array(~mask[y[inarr].astype(int),
+                                    x[inarr].astype(int)], dtype=bool)
     if np.all(~OffMask):
         warnings.warn("No scans found that are outside mask.")
         warnings.warn("Using row ends")
@@ -250,7 +250,7 @@ def SpatialSpectralMask(integrations, mask=None, wcs=None,
                         off_frac=0.25, floatvalues=False, offpct=50,
                         **kwargs):
     scanshape = integrations.data['DATA'].shape # Nscans x Nchans
-    OffMask = np.array(scanshape, dtype=np.bool)
+    OffMask = np.array(scanshape, dtype=bool)
     freq = ((np.linspace(1, scanshape[1], scanshape[1])[np.newaxis, :]
             - integrations.data['CRPIX1'][:, np.newaxis])
             * integrations.data['CDELT1'][:, np.newaxis]
@@ -269,25 +269,25 @@ def SpatialSpectralMask(integrations, mask=None, wcs=None,
     z[badz] = 0
     # OffMask = True where OFF the galaxy)
     if floatvalues:
-        OffEmission = np.array(mask[z.astype(np.int),
-                                    y.astype(np.int),
-                                    x.astype(np.int)],
-                               dtype=np.float)
+        OffEmission = np.array(mask[z.astype(int),
+                                    y.astype(int),
+                                    x.astype(int)],
+                               dtype=float)
         OffMask = np.zeros_like(OffEmission, dtype=bool)
         EmScans = np.sum(OffEmission, axis=1)
         BetterScans = (EmScans <= np.percentile(EmScans, offpct))
         OffMask = (BetterScans[:, np.newaxis]
-                   * np.ones((1, OffEmission.shape[1]), dtype=np.bool))
+                   * np.ones((1, OffEmission.shape[1]), dtype=bool))
         # blank_chans = np.all(OffEmission == 0, axis=0)
         AllOn = np.all(~OffMask, axis=0)
     else:
-        OffMask = np.array(mask[z.astype(np.int),
-                                y.astype(np.int),
-                                x.astype(np.int)], dtype=np.bool)
+        OffMask = np.array(mask[z.astype(int),
+                                y.astype(int),
+                                x.astype(int)], dtype=bool)
         OffMask = ~OffMask
         AllOn = np.all(~OffMask, axis=0)
 
-        # mask[x.astype(np.int)[badx], y.astype(np.int)[bady]] = False
+        # mask[x.astype(int)[badx], y.astype(int)[bady]] = False
     if np.any(AllOn):
         warnings.warn("Some channels always on emission")
         OffMask[:, AllOn] = True
@@ -297,7 +297,7 @@ def SpatialSpectralMask(integrations, mask=None, wcs=None,
 
 def NoMask(integrations, **kwargs):
     scanshape = integrations.data['DATA'].shape # Nscans x Nchans
-    OffMask = np.ones(scanshape, dtype=np.bool)
+    OffMask = np.ones(scanshape, dtype=bool)
     return(OffMask, 'NoMask')
 
 
@@ -310,7 +310,7 @@ def RowEnds(integrations, off_frac=0.25, **kwargs):
          Fraction of bandpass used to determine the off spectrum on either side.
     """
     nIntegrations = len(integrations.data)
-    OffMask = np.zeros(nIntegrations, dtype=np.bool)
+    OffMask = np.zeros(nIntegrations, dtype=bool)
     OffMask[0:int(off_frac*nIntegrations)] = True
     OffMask[-int(off_frac*nIntegrations):] = True
     return(OffMask, 'RowEnds')
@@ -504,16 +504,16 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                  varfrac=varfrac,
                                                  tcal=tcal, **kwargs))
                     print('\n')
-
-
-                    if nProc > 1:
-                        with Pool(nProc) as pool:
-                            calonoffsets = pool.map(doOnOff, onoffsets)
-                    else:
-                        calonoffsets = []
-                        for i, onoff in enumerate(onoffsets):
-                            calonoffsets.append(doOnOff(onoff, OffType=OffType,
-                                                        varfrac=varfrac))
+                        
+                    calonoffsets = doOnOffAggregated(onoffsets, OffType=OffType,)
+                    # if nProc > 1:
+                    #     with Pool(nProc) as pool:
+                    #         calonoffsets = pool.map(doOnOff, onoffsets)
+                    # else:
+                    #     calonoffsets = []
+                    #     for i, onoff in enumerate(onoffsets):
+                    #         calonoffsets.append(doOnOff(onoff, OffType=OffType,
+                    #                                     varfrac=varfrac))
 
                     for onoff in calonoffsets:
                         for ctr, rownum in enumerate(onoff['rows']):
@@ -599,6 +599,69 @@ def prepcal(thisscan, thisfeed=0, thispol=0,
              'vaneCounts':vaneCounts}
     
     return(onoff)
+
+def doOnOffAggregated(onoffset, OffType='PCA', OffStrategy='RowEnds', varfrac=1e-10):
+    ONs = []
+    splits = []
+    ctr = 0
+    for onoff in onoffset:
+        ONs.append(onoff['ON'])
+        ctr += onoff['ON'].shape[0]
+        splits.append(ctr)
+    
+    ONs = [onoff['ON'] for onoff in onoffset]
+    OffMasks = [onoff['OffMask'] for onoff in onoffset]
+    vaneCounts = [onoff['vaneCounts'] for onoff in onoffset]
+    
+    ON = np.concatenate(ONs, axis=0)
+    OffMask = np.concatenate(OffMasks, axis=0)
+    
+    if OffType == 'PCA':
+        # Use PCA to generate the components
+        from sklearn.decomposition import PCA
+
+        ncomp = 10
+        if OffMask.ndim == 1:
+            ONselect = ON[np.where(OffMask)[0],:]
+        else:
+            ONselect = ON[np.where(OffMask[:,0])[0],:]
+        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]),
+                     svd_solver='full')
+        pcaobj.fit(ONselect)
+        # pcaobj.fit(np.r_[ONselect,
+        #                  np.roll(ONselect, 1, axis=1),
+        #                  np.roll(ONselect, -1, axis=1)])
+        
+        coeffs = pcaobj.transform(ON)
+        MeanON = np.nanmean(ONselect,axis=0)
+        retain = np.sum(pcaobj.explained_variance_ratio_ > varfrac)
+        AllOFF = (np.dot(coeffs[:, 0:retain],
+                      pcaobj.components_[0:retain, :])
+                  + MeanON)
+        OFFs = np.split(AllOFF, splits, axis=0)
+        
+    for onoff, OFF in zip(onoffset, OFFs):
+        ON = onoff['ON']
+        onoff['OFF'] = OFF
+        onoff['TAstar'] = (onoff['tcal'] * (ON - OFF) / OFF)
+        medianOFF = np.nanmedian(OFF, axis=0)
+
+        # Now construct a scalar factor by taking
+        # median OFF power (over time) and compare to
+        # the mean vaneCounts over time.  Then take
+        # the median of this ratio and apply.
+
+        scalarOFFfactor = np.median(medianOFF /
+                                    (vaneCounts - medianOFF))
+        TA = (onoff['tcal'] * scalarOFFfactor
+            * (ON - OFF) / (OFF))
+        medianTA = np.median(TA, axis=1)
+        medianTA.shape = (1,) + medianTA.shape
+        medianTA = np.ones((ON.shape[1], 1)) * medianTA
+        TAstar = TA - medianTA.T
+        onoff['TAstar'] = TAstar
+    return(onoffset)
+
 
 def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds', varfrac=0.05):
     ON = onoff['ON']

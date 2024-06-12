@@ -225,8 +225,8 @@ def cygriddata(filelist,
                              indexing='ij')
     xmat = xmat.reshape(xmat.size)
     ymat = ymat.reshape(ymat.size)
-    xmat = xmat.astype(np.int)
-    ymat = ymat.astype(np.int)
+    xmat = xmat.astype(int)
+    ymat = ymat.astype(int)
 
     ctr = 0
 
@@ -306,7 +306,7 @@ def cygriddata(filelist,
                 DeltaChan = DeltaNu / cdelt3
                 specData = gg.channelShift(specData, -DeltaChan)
                 outslice = (specData)[startChannel:endChannel]
-                spectrum_wt = np.isfinite(outslice).astype(np.float)
+                spectrum_wt = np.isfinite(outslice).astype(float)
                 outslice = np.nan_to_num(outslice)
                 # xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[idx],
                 #                                             latCoord[idx],

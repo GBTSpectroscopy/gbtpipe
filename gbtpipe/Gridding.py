@@ -18,7 +18,7 @@ from spectral_cube import SpectralCube
 from radio_beam import Beam
 from astropy.coordinates import SkyCoord
 import matplotlib.pyplot as plt
-from .Preprocess import preprocess
+from .Preprocess import preprocess, freqShiftValue
 
 from . import __version__
 
@@ -198,12 +198,12 @@ def addHeader_nonStd(hdr, beamSize, sample):
 
     unique_units, posn = np.unique(sample['TUNIT7'],
                                    return_inverse=True)
-    counts = np.bincount(posn)
+    counts = np.bincount(np.atleast_1d(posn))
     bunit = unique_units[counts.argmax()]
 
     unique_frontend, posn = np.unique(sample['FRONTEND'],
                                       return_inverse=True)
-    counts = np.bincount(posn)
+    counts = np.bincount(np.atleast_1d(posn))
     frontend = unique_frontend[counts.argmax()]
 
     bunit_dict = {'Tmb':'K',
@@ -336,10 +336,33 @@ def griddata(filelist,
     # Default behavior is to park the object velocity at
     # the center channel in the VRAD-LSR frame
 
-    crval3 = s[0]['RESTFREQ'] * (1 - s[0]['VELOCITY'] / c)
-    crpix3 = s[0]['CRPIX1'] - startChannel
+    doppler_conv = s[0]['VELDEF']
+    if 'OPTI' in doppler_conv:
+        convention = 'OPTICAL'
+    if 'RADI' in doppler_conv:
+        convention = 'RADIO'
+    if 'RELA' in doppler_conv:
+        convention = 'RELATIVISTIC'
+
+    ndata_orig = s[0]['DATA'].shape[0]
+    indexaxis =  np.arange(ndata_orig) + 1
+    freqaxis = (indexaxis - s[0]['CRPIX1']) * s[0]['CDELT1'] + s[0]['CRVAL1']
+    if s[0]['CDELT1'] < 0:
+        freqaxis = freqaxis[::-1]
+        indexaxis = indexaxis[::-1]
+    
+    crval3 = freqShiftValue(s[0]['RESTFREQ'], s[0]['VELOCITY'], convention=convention)
+    crpix3 = np.interp(crval3, freqaxis, indexaxis) - startChannel
+    
+    # crval3 = s[0]['RESTFREQ'] * (1 - s[0]['VELOCITY'] / c)
+    # crpix3 = s[0]['CRPIX1'] - startChannel
     ctype3 = s[0]['CTYPE1']
-    cdelt3 = s[0]['CDELT1']
+    cdelt3 = s[0]['CDELT1'] 
+
+    # crval3 = s[0]['RESTFREQ'] * (1 - s[0]['VELOCITY'] / c)
+    # crpix3 = s[0]['CRPIX1'] - startChannel
+    # ctype3 = s[0]['CTYPE1']
+    # cdelt3 = s[0]['CDELT1']
 
     w = wcs.WCS(naxis=3)
 
@@ -359,7 +382,6 @@ def griddata(filelist,
         naxis1 = wcsdict['NAXIS1']
         w.wcs.radesys = s[0]['RADESYS']
         w.wcs.equinox = s[0]['EQUINOX']
-
     else:
         w.wcs.crpix = [templateHeader['CRPIX1'],
                        templateHeader['CRPIX2'], crpix3]
@@ -451,6 +473,7 @@ def griddata(filelist,
         spectra, outscan, specwts, tsys = preprocess(thisfile,
                                                      startChannel=startChannel,
                                                      endChannel=endChannel,
+                                                     wcs=w.wcs,
                                                      **kwargs)
         for i in range(len(spectra)):    
             xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[i],

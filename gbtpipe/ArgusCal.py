@@ -24,7 +24,7 @@ import astropy.wcs as wcs
 from astropy.coordinates import SkyCoord
 from multiprocessing import Pool
 from functools import partial
-
+from scipy.interpolate import make_smoothing_spline
 
 def makelogdir():
     # Creates log director required by default by gbtpipe
@@ -199,7 +199,7 @@ def ZoneOfAvoidance(integrations, center=None,
     size : astropy.units
         Distance away from centre to be avoided in finding OFFs
     """
-    frame_name = integrations.data['RADESYS'][0].astype(np.str).strip().lower()
+    frame_name = integrations.data['RADESYS'][0].astype(str).strip().lower()
     coords = SkyCoord(integrations.data['CRVAL2'],
                       integrations.data['CRVAL3'],
                       unit=(u.deg, u.deg),
@@ -291,6 +291,7 @@ def SpatialSpectralMask(integrations, mask=None, wcs=None,
     if np.any(AllOn):
         warnings.warn("Some channels always on emission")
         OffMask[:, AllOn] = True
+    
     return(OffMask, 'SpatialSpectralMask')
 
 
@@ -320,7 +321,9 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
              outdir=None, log=None, loglevel='warning',
              OffSelector=RowEnds, OffType='linefit',
              verbose=True, suffix='', nProc=1,
-             opacity=True, varfrac=0.05,
+             opacity=True, varfrac=0.05, drop_last_scan=False,
+             varrat=None, 
+             smoothpca=False,
              **kwargs):
     """Main calibration routine
 
@@ -356,8 +359,19 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
     badfeeds : list of int 
          List of feeds to ignore in reduction.  THIS IS ZERO INDEXED
          BECAUSE SOFTWARE.  We love hardware people but they count funny.
+    drop_last_scan : bool
+         Drop the last scan of each row. Needed for some modes.  
+         Try with and without and see how it looks
+    varfrac : float (optional)
+         The fraction of variance to retain in dimensionality reduction. Default is 1e-4.
+    varrat : float or None (optional)
+         The ratio of variance between successive components to retain. 
+         If None, no specific ratio is enforced. Default is None and PCA will use varfrac.
+    smoothpca : bool
+         Whether to apply time smoothing for PCA components (Principal Component Analysis). 
+         Default is False.
     """
-
+    
     # Grab them files
     if os.path.isdir(inputdir):
         fitsfiles = glob.glob(inputdir + '/*fits')
@@ -502,18 +516,21 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                  allfiles=allfiles,
                                                  opacity=opacity,
                                                  varfrac=varfrac,
+                                                 drop_last_scan=drop_last_scan,
                                                  tcal=tcal, **kwargs))
                     print('\n')
                         
-                    # calonoffsets = doOnOffAggregated(onoffsets, OffType=OffType,)
-                    if nProc > 1:
-                        with Pool(nProc) as pool:
-                            calonoffsets = pool.map(doOnOff, onoffsets)
-                    else:
-                        calonoffsets = []
-                        for i, onoff in enumerate(onoffsets):
-                            calonoffsets.append(doOnOff(onoff, OffType=OffType,
-                                                        varfrac=varfrac))
+                    calonoffsets = doOnOffAggregated(onoffsets, OffType=OffType, 
+                                                     varfrac=varfrac, varrat=varrat, 
+                                                     smoothpca=smoothpca)
+                    # if nProc > 1:
+                    #     with Pool(nProc) as pool:
+                    #         calonoffsets = pool.map(doOnOff, onoffsets)
+                    # else:
+                    #     calonoffsets = []
+                    #     for i, onoff in enumerate(onoffsets):
+                    #         calonoffsets.append(doOnOff(onoff, OffType=OffType,
+                    #                                     varfrac=varfrac))
 
                     for onoff in calonoffsets:
                         for ctr, rownum in enumerate(onoff['rows']):
@@ -533,16 +550,17 @@ def prepcal(thisscan, thisfeed=0, thispol=0,
             thiswin=0, pipe=None, row_list=None, log=None,
             weather=None, cal=None, OffSelector=None, vaneCounts=None,
             tcal=None, tsysStar=None, cl_params=None, allfiles=None,
-            command_options=None, OffType=None, opacity=True,
+            command_options=None, OffType=None, opacity=True, drop_last_scan=False,
             **kwargs):
                         
     rows = row_list.get(thisscan, thisfeed,thispol, thiswin)
     ext = rows['EXTENSION']
     rows = rows['ROW']
+    if drop_last_scan:
+        rows.pop()
     columns = tuple(pipe.infile[ext].get_colnames())
     integs = ConvenientIntegration(
         pipe.infile[ext][columns][rows], log=log)
-
     # Grab everything we need to get a Tsys measure
     timestamps = integs.data['DATE-OBS']
     elevation = np.median(integs.data['ELEVATIO'])
@@ -588,7 +606,7 @@ def prepcal(thisscan, thisfeed=0, thispol=0,
         OffType = 'median'
     if OffStrategy=='SpatialMask' and OffType=='median':
         OffType = 'linefit'
-
+    
     onoff = {'rows':rows,
              'integs':integs,
              'TAstar':ON,
@@ -596,11 +614,23 @@ def prepcal(thisscan, thisfeed=0, thispol=0,
              'ON':ON,
              'OffMask':OffMask,
              'tcal':tcal,
-             'vaneCounts':vaneCounts}
+             'vaneCounts':vaneCounts,
+             'mjd':mjds}
     
     return(onoff)
 
-def doOnOffAggregated(onoffset, OffType='PCA', OffStrategy='RowEnds', varfrac=1e-10):
+
+def residual(params, data=None, components=None, mean=None):
+    coeffs = []
+    for key in params.keys():
+        coeffs.append(params[key].value)
+    coeffs = np.array(coeffs)
+    pcavec = np.dot(coeffs, components) + mean
+    return data - pcavec
+
+
+def doOnOffAggregated(onoffset, OffType='PCA',
+                      varfrac=1e-4, varrat=None, smoothpca=False):
     ONs = []
     splits = []
     ctr = 0
@@ -612,32 +642,51 @@ def doOnOffAggregated(onoffset, OffType='PCA', OffStrategy='RowEnds', varfrac=1e
     ONs = [onoff['ON'] for onoff in onoffset]
     OffMasks = [onoff['OffMask'] for onoff in onoffset]
     vaneCounts = [onoff['vaneCounts'] for onoff in onoffset]
-    
+    mjds = [onoff['mjd'] for onoff in onoffset]
+
     ON = np.concatenate(ONs, axis=0)
     OffMask = np.concatenate(OffMasks, axis=0)
-    
+    mjds = np.concatenate(mjds, axis=0)
+
+    ON = np.log(ON)
+    if OffMask.ndim == 2:
+        OffRows = np.all(OffMask, axis=1)
+    else:
+        OffRows = OffMask
     if OffType == 'PCA':
         # Use PCA to generate the components
         from sklearn.decomposition import PCA
-
-        ncomp = 10
-        if OffMask.ndim == 1:
-            ONselect = ON[np.where(OffMask)[0],:]
-        else:
-            ONselect = ON[np.where(OffMask[:,0])[0],:]
-        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]),
-                     svd_solver='full')
+        from lmfit import minimize, Parameters
+        ncomp = 20
+        ONselect = ON[np.where(OffMask)[0],:]
+        mjds_select = mjds[OffRows]
+        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]))
         pcaobj.fit(ONselect)
-        # pcaobj.fit(np.r_[ONselect,
-        #                  np.roll(ONselect, 1, axis=1),
-        #                  np.roll(ONselect, -1, axis=1)])
         
         coeffs = pcaobj.transform(ON)
-        MeanON = np.nanmean(ONselect,axis=0)
-        retain = np.sum(pcaobj.explained_variance_ratio_ > varfrac)
+        coeffs_select = pcaobj.transform(ONselect)
+        MeanON = np.nanmean(ONselect, axis=0)
+        if varrat:
+            retain = np.sum(pcaobj.explained_variance_ratio_[0:-1] 
+                            / pcaobj.explained_variance_ratio_[1:] > varrat)
+        else:
+            retain = np.sum(pcaobj.explained_variance_ratio_ > varfrac)
+            
+        if smoothpca:
+            coeffs_smooth = np.zeros_like(coeffs)
+            meantime = np.mean(mjds)
+            for component in range(retain):
+                smoothing_func = make_smoothing_spline(mjds_select - meantime, 
+                                                       coeffs_select[:,component], 
+                                                       lam=1e-12)
+                coeffs_smooth[:, component] = smoothing_func(mjds - meantime)
+            coeffs = coeffs_smooth
+            
         AllOFF = (np.dot(coeffs[:, 0:retain],
-                      pcaobj.components_[0:retain, :])
+                  pcaobj.components_[0:retain, :])
                   + MeanON)
+        AllOFF = np.exp(AllOFF)
+        ON = np.exp(ON)
         OFFs = np.split(AllOFF, splits, axis=0)
         
     for onoff, OFF in zip(onoffset, OFFs):

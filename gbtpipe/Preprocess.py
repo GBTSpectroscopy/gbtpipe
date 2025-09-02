@@ -2,7 +2,7 @@
 import numpy as np
 import glob
 from astropy.io import fits
-import astropy.wcs as wcs
+# import astropy.wcs as wcs
 import itertools
 from scipy.special import j1
 import pdb
@@ -24,6 +24,8 @@ from . import __version__
 
 # Restriction: Mask must be in the same spectral space as the resulting
 # gridded cube.
+
+cms = 299792458.
 
 def buildMaskLookup(filename):
     maskcube = SpectralCube.read(filename)
@@ -88,7 +90,7 @@ def drawTimeSeriesPlot(data, filename='TimeSeriesPlot',
 
 
 def freqShiftValue(freqIn, vshift, convention='RADIO'):
-    cms = 299792458.
+    
     if convention.upper() in 'OPTICAL':
         return freqIn / (1.0 + vshift / cms)
     if convention.upper() in 'TRUE':
@@ -150,6 +152,7 @@ def VframeInterpolator(scan):
 def preprocess(filename,
                startChannel=None,
                endChannel=None,
+               wcs=None,
                doBaseline=True,
                baselineRegion=None,
                blorder=1,
@@ -242,11 +245,12 @@ def preprocess(filename,
         Dictionary that has a tuple of feed and polarization numbers
         as keys and returns the gain values for that feed.
 
-    windowStrategy : 'simple' or 'cubemask' 
+    windowStrategy : 'simple' or 'cubemask' or 'none'
         Chooses how to select the window of channels to exclude from
         baseline fitting.  'simple' uses Baseline.simpleWindow and
         associated keywords.  'cubemask' interpolates onto the the
-        file specified in the maskfile keyword.
+        file specified in the maskfile keyword. 'none' uses no window
+        and fits a baseline to the whole spectrum (generally used with 'robust')
 
     maskfile : str
         path and filename to FITS file containing a mask. The mask
@@ -287,12 +291,31 @@ def preprocess(filename,
     if outdir is None:
         outdir = os.getcwd()
 
-    crval3 = s[0]['RESTFREQ'] * (1 - s[0]['VELOCITY'] / c)
-    crpix3 = s[0]['CRPIX1'] - startChannel
+    doppler_conv = s[0]['VELDEF']
+    if 'OPTI' in doppler_conv:
+        convention = 'OPTICAL'
+    if 'RADI' in doppler_conv:
+        convention = 'RADIO'
+    if 'RELA' in doppler_conv:
+        convention = 'RELATIVISTIC'
+
+    ndata_orig = s[0]['DATA'].shape[0]
+    indexaxis =  np.arange(ndata_orig) + 1
+    freqaxis = (indexaxis - s[0]['CRPIX1']) * s[0]['CDELT1'] + s[0]['CRVAL1']
+    if s[0]['CDELT1'] < 0:
+        freqaxis = freqaxis[::-1]
+        indexaxis = indexaxis[::-1]
+    
+    # crval3 = freqShiftValue(s[0]['RESTFREQ'], s[0]['VELOCITY'], convention=convention)
+    # crpix3 = np.interp(crval3, freqaxis, indexaxis) - startChannel
+    refcrval = s[0]['CRVAL1']
+
+    # crval3 = s[0]['RESTFREQ'] * (1 - s[0]['VELOCITY'] / c)
+    # crpix3 = s[0]['CRPIX1'] - startChannel
     ctype3 = s[0]['CTYPE1']
     cdelt3 = s[0]['CDELT1'] 
-    spectral_axis = (np.arange(nData)
-                     + 1 - crpix3) * cdelt3 + crval3
+    # spectral_axis = (np.arange(nData)
+    #                  + 1 - crpix3) * cdelt3 + crval3
     
     if not OnlineDoppler:
         vframe_list = VframeInterpolator(s)
@@ -317,11 +340,26 @@ def preprocess(filename,
         if spectrum['OBJECT'] == 'VANE' or spectrum['OBJECT'] == 'SKY':
             continue
 
+        # This part takes the TOPOCENTRIC frequency that is at
+        # CRPIX1 (i.e., CRVAL1) and calculates the what frequency
+        # that would have in the LSRK frame with freqShiftValue.
+        # This then compares to the desired frequency CRVAL3.
         specData = spectrum['DATA']
-        DeltaNu = freqShiftValue(spectrum['CRVAL1'],
-                                    -vframe) - crval3
-        DeltaChan = DeltaNu / cdelt3
-        specData = channelShift(specData, -DeltaChan)
+        DeltaNu = freqShiftValue(spectrum['CRVAL1'], vframe, convention=convention) - spectrum['CRVAL1']
+        DeltaChan = DeltaNu / cdelt3  # Shift from TOPO to SPECSYS
+        
+        spectral_axis = ((np.arange(nData) + 1 - spectrum['CRPIX1']) 
+                         * spectrum['CDELT1'] + spectrum['CRVAL1']) + DeltaNu
+        nu0 = spectral_axis[startChannel] # This is the SPECSYS value of first channel
+        # This is the SPECSYS value of the expected cube
+        nu0_template = (1 - wcs.crpix[2]) * wcs.cdelt[2] + wcs.crval[2] 
+        # These should line up so calculated ifference
+        DeltaNu2 = nu0_template - nu0
+        DeltaChan2 = DeltaNu2 / cdelt3 # Shift between desired spectrum 
+        # import pdb; pdb.set_trace()
+        # But the requested header may not align with actual observations so we need 
+        # the additional shift        
+        specData = channelShift(specData, DeltaChan + DeltaChan2)
         baselineMask = np.zeros_like(specData, dtype=bool)
         noise = None
         if flagSpike:
@@ -332,11 +370,6 @@ def preprocess(filename,
             specData[~spikemask] = 0.0
         else:
             spikemask = np.ones_like(specData, dtype=bool)
-
-        # This part takes the TOPOCENTRIC frequency that is at
-        # CRPIX1 (i.e., CRVAL1) and calculates the what frequency
-        # that would have in the LSRK frame with freqShiftValue.
-        # This then compares to the desired frequency CRVAL3.
 
         if windowStrategy == 'simple':
             baselineIndex = simpleWindow(spectrum,
@@ -359,10 +392,13 @@ def preprocess(filename,
             # if np.any(thismask):
             #     import pdb; pdb.set_trace()
 
+        if windowStrategy == 'none':
+            baselineMask[:] = True
+
         if doBaseline & np.all(np.isfinite(specData[baselineMask])):
             if robust:
                 specData = robustBaseline(specData, blorder=blorder,
-                                          baselineIndex=baselineMask,
+                                          baselineIndex=baselineMask, 
                                           noiserms=noise)
             else:
                 specData = baselineSpectrum(specData, order=blorder,

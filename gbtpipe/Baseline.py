@@ -183,14 +183,13 @@ def baselineSpectrum(spectrum, order=1, baselineIndex=()):
 def robustBaseline(y, baselineIndex, blorder=1, noiserms=None):
     x = np.linspace(-1, 1, len(y))
     if noiserms is None:
-        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex])
+        noiserms = mad1d((y - np.roll(y, -2))[baselineIndex * (y != 0)]) * 0.7071
     if np.isnan(noiserms) or (noiserms == 0):
         return(y)
     opts = lsq(legendreLoss, np.zeros(blorder + 1), args=(y[baselineIndex],
                                                           x[baselineIndex],
                                                           noiserms),
                loss='arctan')
-
     return y - legendre.legval(x, opts.x)
 
 

@@ -324,6 +324,7 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
              opacity=True, varfrac=0.05, drop_last_scan=False,
              varrat=None, 
              smoothpca=False,
+             aggregated=False,
              **kwargs):
     """Main calibration routine
 
@@ -370,6 +371,9 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
     smoothpca : bool
          Whether to apply time smoothing for PCA components (Principal Component Analysis). 
          Default is False.
+    aggregated : bool
+        If true use a single OFF reconstruction model for all rows in a scan. 
+        Otherwise, do one row at a time
     """
     
     # Grab them files
@@ -519,18 +523,21 @@ def calscans(inputdir, start=82, stop=105, refscans=[80],
                                                  drop_last_scan=drop_last_scan,
                                                  tcal=tcal, **kwargs))
                     print('\n')
-                        
-                    calonoffsets = doOnOffAggregated(onoffsets, OffType=OffType, 
-                                                     varfrac=varfrac, varrat=varrat, 
-                                                     smoothpca=smoothpca)
-                    # if nProc > 1:
-                    #     with Pool(nProc) as pool:
-                    #         calonoffsets = pool.map(doOnOff, onoffsets)
-                    # else:
-                    #     calonoffsets = []
-                    #     for i, onoff in enumerate(onoffsets):
-                    #         calonoffsets.append(doOnOff(onoff, OffType=OffType,
-                    #                                     varfrac=varfrac))
+
+                    if aggregated:                        
+                        calonoffsets = doOnOffAggregated(onoffsets, OffType=OffType, 
+                                                        varfrac=varfrac, varrat=varrat, 
+                                                        smoothpca=smoothpca)
+                    else:
+                        if nProc > 1:
+                            with Pool(nProc) as pool:
+                                calonoffsets = pool.map(doOnOff, onoffsets)
+                        else:
+                            calonoffsets = []
+                            for i, onoff in enumerate(onoffsets):
+                                calonoffsets.append(doOnOff(onoff, OffType=OffType,
+                                                            varfrac=varfrac, varrat=varrat, 
+                                                            smoothpca=smoothpca))
 
                     for onoff in calonoffsets:
                         for ctr, rownum in enumerate(onoff['rows']):
@@ -630,7 +637,7 @@ def residual(params, data=None, components=None, mean=None):
 
 
 def doOnOffAggregated(onoffset, OffType='PCA',
-                      varfrac=1e-4, varrat=None, smoothpca=False):
+                      varfrac=1e-4, varrat=None, smoothpca=False, blankend=True):
     ONs = []
     splits = []
     ctr = 0
@@ -648,7 +655,6 @@ def doOnOffAggregated(onoffset, OffType='PCA',
     OffMask = np.concatenate(OffMasks, axis=0)
     mjds = np.concatenate(mjds, axis=0)
 
-    ON = np.log(ON)
     if OffMask.ndim == 2:
         OffRows = np.all(OffMask, axis=1)
     else:
@@ -657,12 +663,14 @@ def doOnOffAggregated(onoffset, OffType='PCA',
         # Use PCA to generate the components
         from sklearn.decomposition import PCA
         from lmfit import minimize, Parameters
+        ON = np.log(ON)
+        if blankend:
+            ON = ON[:, 1:-1]
         ncomp = 20
         ONselect = ON[np.where(OffMask)[0],:]
         mjds_select = mjds[OffRows]
         pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]))
         pcaobj.fit(ONselect)
-        
         coeffs = pcaobj.transform(ON)
         coeffs_select = pcaobj.transform(ONselect)
         MeanON = np.nanmean(ONselect, axis=0)
@@ -671,22 +679,34 @@ def doOnOffAggregated(onoffset, OffType='PCA',
                             / pcaobj.explained_variance_ratio_[1:] > varrat)
         else:
             retain = np.sum(pcaobj.explained_variance_ratio_ > varfrac)
-            
+       
+        
         if smoothpca:
             coeffs_smooth = np.zeros_like(coeffs)
             meantime = np.mean(mjds)
             for component in range(retain):
                 smoothing_func = make_smoothing_spline(mjds_select - meantime, 
                                                        coeffs_select[:,component], 
-                                                       lam=1e-12)
+                                                       lam=1e-15)
                 coeffs_smooth[:, component] = smoothing_func(mjds - meantime)
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1, 1, dpi=300)
+            # fig.set_size_inches(10,8)
+            # import pdb; pdb.set_trace()                 
             coeffs = coeffs_smooth
-            
+
+        
         AllOFF = (np.dot(coeffs[:, 0:retain],
                   pcaobj.components_[0:retain, :])
                   + MeanON)
         AllOFF = np.exp(AllOFF)
-        ON = np.exp(ON)
+        # ON = np.exp(ON)
+        if blankend:
+            tmp = np.zeros((AllOFF.shape[0], AllOFF.shape[1]+2))
+            tmp[:,1:-1] = AllOFF
+            tmp[:,0] = 1
+            tmp[:, -1] = 1
+            AllOFF = tmp
         OFFs = np.split(AllOFF, splits, axis=0)
         
     for onoff, OFF in zip(onoffset, OFFs):
@@ -700,11 +720,11 @@ def doOnOffAggregated(onoffset, OffType='PCA',
         # the mean vaneCounts over time.  Then take
         # the median of this ratio and apply.
 
-        scalarOFFfactor = np.median(medianOFF /
+        scalarOFFfactor = np.nanmedian(medianOFF /
                                     (vaneCounts - medianOFF))
         TA = (onoff['tcal'] * scalarOFFfactor
             * (ON - OFF) / (OFF))
-        medianTA = np.median(TA, axis=1)
+        medianTA = np.nanmedian(TA, axis=1)
         medianTA.shape = (1,) + medianTA.shape
         medianTA = np.ones((ON.shape[1], 1)) * medianTA
         TAstar = TA - medianTA.T
@@ -712,11 +732,14 @@ def doOnOffAggregated(onoffset, OffType='PCA',
     return(onoffset)
 
 
-def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds', varfrac=0.05):
+def doOnOff(onoff, OffType='PCA',
+            varfrac=1e-2, varrat=None, smoothpca=False, blankend=True):
+    
     ON = onoff['ON']
     OffMask = onoff['OffMask']
     vaneCounts = onoff['vaneCounts']
-
+    mjds = onoff['mjd']
+    
     if OffType == 'median2d':
 
         # This builds a 2D median map of a data set then does a
@@ -768,26 +791,56 @@ def doOnOff(onoff, OffType='PCA', OffStrategy='RowEnds', varfrac=0.05):
     if OffType == 'PCA':
         # Use PCA to generate the components
         from sklearn.decomposition import PCA
-
-        ncomp = 10
-        if OffMask.ndim == 1:
-            ONselect = ON[np.where(OffMask)[0],:]
-        else:
-            ONselect = ON[np.where(OffMask[:,0])[0],:]
-        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]),
-                     svd_solver='full')
+        from lmfit import minimize, Parameters
+        ON = np.log(ON)
+        if blankend:
+            ON = ON[:, 1:-1]
+        ncomp = 20
+        ONselect = ON[np.where(OffMask)[0],:]
+        mjds_select = mjds[OffMask]
+        pcaobj = PCA(n_components=np.min([ncomp, ONselect.shape[0]-1]))
         pcaobj.fit(ONselect)
-        # pcaobj.fit(np.r_[ONselect,
-        #                  np.roll(ONselect, 1, axis=1),
-        #                  np.roll(ONselect, -1, axis=1)])
         
         coeffs = pcaobj.transform(ON)
-        MeanON = np.nanmean(ONselect,axis=0)
-        retain = np.sum(pcaobj.explained_variance_ratio_ > varfrac)
-        OFF = (np.dot(coeffs[:, 0:retain],
-                      pcaobj.components_[0:retain, :])
-               + MeanON)
+        coeffs_select = pcaobj.transform(ONselect)
+        MeanON = np.nanmean(ONselect, axis=0)
+        if varrat:
+            retain = np.sum(pcaobj.explained_variance_ratio_[0:-1] 
+                            / pcaobj.explained_variance_ratio_[1:] > varrat)
+        else:
+            retain = np.sum(pcaobj.explained_variance_ratio_ > varfrac)
+            
+        if smoothpca:
+            coeffs_smooth = np.zeros_like(coeffs)
+            meantime = np.mean(mjds)
+            for component in range(retain):
+                smoothing_func = make_smoothing_spline(mjds_select - meantime, 
+                                                       coeffs_select[:,component], 
+                                                       lam=1e-12)
+                coeffs_smooth[:, component] = smoothing_func(mjds - meantime)
+            coeffs = coeffs_smooth
+        
+        AllOFF = (np.dot(coeffs[:, 0:retain],
+                  pcaobj.components_[0:retain, :])
+                  + MeanON)
+        OFF = np.exp(AllOFF)
+        ON = np.exp(ON)
+        if blankend:
+            tmp = np.zeros((OFF.shape[0], OFF.shape[1]+2))
+            tmp[:,1:-1] = OFF
+            tmp[:,0] = 1
+            tmp[:, -1] = 1
+            OFF = tmp
+            tmp = np.zeros((ON.shape[0], ON.shape[1]+2))
+            tmp[:,1:-1] = ON
+            tmp[:, 0] = 1
+            tmp[:, -1] = 1
+            ON = tmp
+            
+        # OFFs = np.split(AllOFF, splits, axis=0)
+        
 
+        
     if OffType == 'median':
         # Model the off power as the median counts
         # across the whole bandpass. This assumes

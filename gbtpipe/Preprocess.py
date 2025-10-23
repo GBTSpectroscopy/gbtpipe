@@ -345,6 +345,11 @@ def preprocess(filename,
         # that would have in the LSRK frame with freqShiftValue.
         # This then compares to the desired frequency CRVAL3.
         specData = spectrum['DATA']
+        badmask = ~np.isfinite(specData)
+        specData[badmask] = 0.0
+        badmask = badmask.astype(float)
+        
+        
         DeltaNu = freqShiftValue(spectrum['CRVAL1'], vframe, convention=convention) - spectrum['CRVAL1']
         DeltaChan = DeltaNu / cdelt3  # Shift from TOPO to SPECSYS
         
@@ -356,10 +361,11 @@ def preprocess(filename,
         # These should line up so calculated ifference
         DeltaNu2 = nu0_template - nu0
         DeltaChan2 = DeltaNu2 / cdelt3 # Shift between desired spectrum 
-        # import pdb; pdb.set_trace()
+            
         # But the requested header may not align with actual observations so we need 
         # the additional shift        
         specData = channelShift(specData, DeltaChan + DeltaChan2)
+        badmask = channelShift(badmask, DeltaChan + DeltaChan2)
         baselineMask = np.zeros_like(specData, dtype=bool)
         noise = None
         if flagSpike:
@@ -389,8 +395,6 @@ def preprocess(filename,
                                   spectral_axis)
 
             baselineMask[np.squeeze(thismask.astype(bool))] = False
-            # if np.any(thismask):
-            #     import pdb; pdb.set_trace()
 
         if windowStrategy == 'none':
             baselineMask[:] = True
@@ -431,16 +435,16 @@ def preprocess(filename,
 
             if ripple > rippleThresh * scan_rms:
                 tsys = 0 # Blank spectrum
-
         if tsys == 0:
             flagct +=1
             
         outslice = (specData)[startChannel:endChannel]
 
-        spectrum_wt = ((np.isfinite(outslice)
+        spectrum_wt = ((np.isfinite(outslice).astype(float)
                         * spikemask[startChannel:
                                     endChannel]).astype(float)
-                        * feedwt)
+                        * feedwt
+                        * (badmask[startChannel:endChannel] < 1e-2).astype(float))
         outslice = np.nan_to_num(outslice)
         outscans += [outslice]
         outwts += [spectrum_wt]

@@ -475,6 +475,7 @@ def griddata(filelist,
                                                      endChannel=endChannel,
                                                      wcs=w.wcs,
                                                      **kwargs)
+
         for i in range(len(spectra)):    
             xpoints, ypoints, zpoints = w.wcs_world2pix(longCoord[i],
                                                         latCoord[i],

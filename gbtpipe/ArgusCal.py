@@ -708,7 +708,7 @@ def doOnOffAggregated(onoffset, OffType='PCA',
             tmp[:, -1] = 1
             AllOFF = tmp
         OFFs = np.split(AllOFF, splits, axis=0)
-        
+
     for onoff, OFF in zip(onoffset, OFFs):
         ON = onoff['ON']
         onoff['OFF'] = OFF
